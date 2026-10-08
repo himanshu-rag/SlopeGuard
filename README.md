@@ -5,6 +5,7 @@
     <strong>Military-Grade Geospatial AI for Real-Time Landslide Prediction</strong>
   </p>
   <p align="center">
+    <a href="#features">Features</a> • 
     <a href="#architecture">Architecture</a> • 
     <a href="#ml-engine">ML Engine</a> • 
     <a href="#setup-guide">Setup Guide</a> • 
@@ -15,9 +16,17 @@
 <br/>
 
 ## 🌍 Overview
-**SlopeGuard** is an advanced risk intelligence platform designed to predict and monitor landslide threats in real time. It fuses live IoT telemetry, physical terrain geometry (XGBoost), and historical rainfall patterns (PyTorch LSTM) to provide a unified, WebGL-powered command center.
+**SlopeGuard** is an advanced risk intelligence platform designed to predict and monitor landslide threats anywhere on Earth. It fuses live IoT telemetry, physical terrain geometry (XGBoost), and historical rainfall patterns (PyTorch LSTM) to provide a unified, WebGL-powered command center.
 
-Instead of static dashboards, SlopeGuard calculates **probabilistic failure modes** on the fly and routes physical hardware sensors directly onto a 3D-capable map.
+Instead of static dashboards, SlopeGuard calculates **probabilistic failure modes** on the fly, dynamically generating evacuation routes, tracking critical infrastructure, and routing physical hardware sensors directly onto an interactive 3D-capable map.
+
+---
+
+## ✨ Latest Updates (v2.0)
+* 🌐 **Global API Search:** Powered by OpenStreetMap Nominatim and Open-Meteo Archive. Search for **any coordinate on Earth**, fetch its real 30-day precipitation history, and run it through the neural network instantly.
+* ⏪ **DVR Historical Replay:** Switch into historical simulator mode to replay catastrophic past events (e.g., 2024 Wayanad, 2013 Kedarnath). The dashboard overrides live data to stream simulated 400mm+ monsoons and critical hardware failure telemetry.
+* 🚑 **Dynamic Evacuation Routing:** Powered by the Open Source Routing Machine (OSRM). Instantly calculates emergency driving routes from the hazard zone to safe elevation, plotting the glowing route natively in MapLibre.
+* 🏥 **Infrastructure Vulnerability Engine:** Automatically calculates distance to nearby medical facilities and transit bridges, updating exposure levels and tracking status dynamically based on the AI risk score.
 
 ---
 
@@ -28,39 +37,35 @@ SlopeGuard operates on a high-performance modern stack divided into three primar
 ```mermaid
 flowchart TD
     subgraph Frontend [Frontend Command Center]
-        UI["Bento UI / Framer Motion"]
-        Map["MapLibre GL JS"]
-        WS_Client["WebSocket Client"]
+        UI["React / Framer Motion UI"]
+        Map["MapLibre GL JS + Esri Satellite"]
+        OSRM["OSRM Routing Engine"]
     end
 
-    subgraph Backend [Backend API Engine]
+    subgraph Backend [FastAPI Backend]
         API["REST API"]
-        WS_Server["Telemetry Stream"]
-        DB_Layer["PostGIS & SQLAlchemy"]
+        WS_Server["WebSocket Telemetry Stream"]
     end
 
     subgraph Intelligence [ML Fusion Core]
         XGB["XGBoost: Susceptibility"]
         LSTM["PyTorch: Trigger Model"]
-        ONNX["ONNX Runtime"]
+        Fusion["Joint Probability AND-Gate"]
     end
 
     subgraph DataSources [Live Data Feeds]
+        Nominatim["OSM Nominatim Geocoding"]
         OpenMeteo["Open-Meteo Archive"]
         IoT["Physical Hardware Nodes"]
     end
 
     UI --> Map
     UI <--> API
-    WS_Client <--> WS_Server
+    UI --> Nominatim
+    UI --> OSRM
     
     API <--> Intelligence
-    API <--> DB_Layer
-    
-    XGB --> ONNX
-    LSTM --> ONNX
-    
-    OpenMeteo --> DB_Layer
+    API <--> OpenMeteo
     IoT --> WS_Server
 ```
 
@@ -77,56 +82,39 @@ Evaluates the physical geometry of the mountain.
 
 ### 2. Meteorological Trigger (PyTorch LSTM)
 Evaluates the sequence and intensity of recent weather.
-* **Features:** 30-day sequential rainfall curves, 7-day antecedent moisture, 3-day peak intensity.
+* **Features:** 30-day sequential rainfall curves, 7-day antecedent moisture, 3-day peak intensity. Absolute volume normalization (500mm scale).
 * **Model:** 2-layer Long Short-Term Memory (LSTM) network exported via ONNX.
 * **Output:** $P(Failure \mid Rainfall)$
 
 ### 3. Joint Probability Fusion
-Both conditions must be met for a catastrophic event. We calculate the joint probability using a weighted geometric mean of complements:
-`Risk Score = [1 - (1 - P_susc)^0.4 * (1 - P_trig)^0.6] * 100`
-
----
-
-## 🚀 Features
-* **Dark-Mode Geospatial Mapping:** Vector-tile rendering via MapLibre GL.
-* **Dynamic Geomorphology Inference:** Modifies model predictions on the fly based on the specific lat/lng you are viewing.
-* **Live IoT Telemetry:** Real-time WebSockets stream from physical hardware (Inclinometers, Soil Moisture Probes, GPS Displacement).
-* **Network Status Grid:** See exactly which nodes (Alpha, Beta, Gamma) are active on the physical slope.
+Both conditions must be met for a catastrophic event. We calculate the joint probability using a pure logical AND-gate to prevent false positives:
+`Risk Score = P(Failure | Terrain) × P(Failure | Rainfall) × 100`
 
 ---
 
 ## 🛠️ Local Development
 
-### 1. Database Setup
-Ensure PostgreSQL with the PostGIS extension is running.
-```bash
-# Create database
-createdb slopeguard
-psql -d slopeguard -c "CREATE EXTENSION postgis;"
-```
-
-### 2. Backend Engine
+### 1. Backend Engine
 ```bash
 cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Seed the real-world terrain and rainfall data
-python ingest_india.py
-
 # Start the FastAPI server
 uvicorn main:app --reload --port 8000
 ```
 
-### 3. ML Model Retraining
+### 2. ML Model Retraining
+To regenerate the PyTorch ONNX weights and XGBoost Pickles:
 ```bash
 cd ml
 source ../backend/venv/bin/activate
-python train.py
+# Run on single thread to prevent Mac multiprocessing deadlocks
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python train.py
 ```
 
-### 4. Command Center (Frontend)
+### 3. Command Center (Frontend)
 ```bash
 cd frontend
 npm install
