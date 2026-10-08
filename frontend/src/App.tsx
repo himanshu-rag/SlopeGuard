@@ -14,8 +14,14 @@ const osmStyle = {
 
 const satelliteStyle = {
   version: 8,
-  sources: { 'satellite': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '&copy; Esri', maxzoom: 17 } },
-  layers: [{ id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0 }]
+  sources: { 
+    'satellite': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '&copy; Esri' },
+    'labels': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'], tileSize: 256 }
+  },
+  layers: [
+    { id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0 },
+    { id: 'labels-layer', type: 'raster', source: 'labels', minzoom: 0 }
+  ]
 };
 
 
@@ -24,7 +30,9 @@ const SEARCH_DB = [
   { id: '2', name: 'Shimla, HP',      lat: 31.1048, lng: 77.1734, type: 'Himalayan Slopes',  slope: 55.0, aspect: 220.0, curvature: -0.8, twi: 5.2 },
   { id: '3', name: 'Darjeeling, WB',  lat: 27.0360, lng: 88.2627, type: 'Steep Tea Estates', slope: 48.0, aspect: 160.0, curvature: -0.3, twi: 6.1 },
   { id: '4', name: 'Munnar, KL',      lat: 10.0889, lng: 77.0595, type: 'Western Ghats',     slope: 35.0, aspect: 270.0, curvature:  0.2, twi: 8.5 },
-  { id: '5', name: 'Guwahati, AS',    lat: 26.1400, lng: 91.7600, type: 'Urban Hills',       slope: 45.0, aspect: 140.0, curvature: -0.5, twi: 8.2 }
+  { id: '5', name: 'Guwahati, AS',    lat: 26.1400, lng: 91.7600, type: 'Urban Hills',       slope: 45.0, aspect: 140.0, curvature: -0.5, twi: 8.2 },
+  { id: 'wayanad_1', name: 'Wayanad, KL (2024)', lat: 11.5549, lng: 76.0822, type: 'Historical Event', slope: 62.0, aspect: 180, curvature: -0.9, twi: 12.5, isHistorical: true, eventName: '2024 Wayanad' },
+  { id: 'kedar_1', name: 'Kedarnath, UK (2013)', lat: 30.7352, lng: 79.0669, type: 'Historical Event', slope: 75.0, aspect: 220, curvature: -1.2, twi: 14.0, isHistorical: true, eventName: '2013 Kedarnath' }
 ];
 
 function App() {
@@ -34,7 +42,42 @@ function App() {
   const [showLayers, setShowLayers] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeModal, setActiveModal] = useState<'lstm' | 'xgb' | null>(null);
+  
+  const riskStyles = {
+    CRITICAL: { title: 'text-red-500', boxBg: 'bg-red-500/5', boxBorder: 'border-red-500/20', icon: 'text-red-400', iconBg: 'bg-red-500/20 group-hover:bg-red-500/30', label: 'text-red-400', desc: 'text-red-300' },
+    HIGH: { title: 'text-orange-500', boxBg: 'bg-orange-500/5', boxBorder: 'border-orange-500/20', icon: 'text-orange-400', iconBg: 'bg-orange-500/20 group-hover:bg-orange-500/30', label: 'text-orange-400', desc: 'text-orange-300' },
+    MEDIUM: { title: 'text-yellow-500', boxBg: 'bg-yellow-500/5', boxBorder: 'border-yellow-500/20', icon: 'text-yellow-400', iconBg: 'bg-yellow-500/20 group-hover:bg-yellow-500/30', label: 'text-yellow-400', desc: 'text-yellow-300' },
+    LOW: { title: 'text-emerald-500', boxBg: 'bg-emerald-500/5', boxBorder: 'border-emerald-500/20', icon: 'text-emerald-400', iconBg: 'bg-emerald-500/20 group-hover:bg-emerald-500/30', label: 'text-emerald-400', desc: 'text-emerald-300' }
+  };
+  const [globalResults, setGlobalResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Debounced Global Search
+  useEffect(() => {
+    if (searchQuery.length < 3) { setGlobalResults([]); return; }
+    const timeout = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${searchQuery}&format=json&limit=3`, { headers: { 'Accept-Language': 'en' }});
+        const data = await res.json();
+        setGlobalResults(data.filter((d: any) => d.lat && d.lon).map((d: any) => ({
+          id: `global_${d.lat}_${d.lon}`,
+          name: (d.display_name?.split(',').slice(0, 2).join(',') || d.name || 'Unknown Location'),
+          lat: parseFloat(d.lat),
+          lng: parseFloat(d.lon),
+          type: 'Global Query',
+          slope: 40.0, // Assumed moderate-high slope for global tests
+          aspect: 180.0,
+          curvature: -0.5,
+          twi: 8.0,
+          isGlobal: true
+        })));
+      } catch (e) {}
+      setIsSearching(false);
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+  const [activeModal, setActiveModal] = useState<'lstm' | 'xgb' | 'factor' | 'hospital' | 'bridge' | null>(null);
 
   const [baseMap, setBaseMap] = useState<'dark' | 'satellite'>('satellite');
   const [showTerrainLayer, setShowTerrainLayer] = useState(false);
@@ -47,25 +90,152 @@ function App() {
   const [viewState, setViewState] = useState({ longitude: 91.76, latitude: 26.14, zoom: 14 });
   const [currentZone, setCurrentZone] = useState({ id: '5', name: 'Guwahati, AS', type: 'Urban Hills', lng: 91.76, lat: 26.14, slope: 45.0, aspect: 140.0, curvature: -0.5, twi: 8.2 });
 
-  useEffect(() => {
-    setLoading(true);
-    fetch(`http://127.0.0.1:8000/zones/${currentZone.id}/rainfall`).then(res => res.json()).then(fetchedRainData => {
-         setRainData(fetchedRainData);
-         return fetch(`${API_BASE}/simulate`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ slope_deg: currentZone.slope, aspect_deg: currentZone.aspect ?? 180.0, curvature: currentZone.curvature ?? -0.5, twi: currentZone.twi, rainfall_seq: fetchedRainData })
-          });
-      }).then(res => res.json()).then(res => { setData(res); setLoading(false); }).catch(() => setLoading(false));
-      
-    // FIX #11: Close previous connection before opening a new one (prevents memory leak)
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.close();
+  // Evacuation Routing State
+  const [evacuationRoute, setEvacuationRoute] = useState<any>(null);
+  const [isRouting, setIsRouting] = useState(false);
+
+  const calculateEvacuation = async () => {
+    setIsRouting(true);
+    const startLng = currentZone.lng - 0.01;
+    const startLat = currentZone.lat + 0.01;
+    const safeLng = currentZone.lng + 0.08;
+    const safeLat = currentZone.lat - 0.05;
+
+    try {
+      const res = await fetch(`http://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${safeLng},${safeLat}?overview=full&geometries=geojson`);
+      const routeData = await res.json();
+      if (routeData.routes && routeData.routes.length > 0 && routeData.routes[0]) {
+        setEvacuationRoute({
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', geometry: routeData.routes[0].geometry, properties: { type: 'route' } },
+            { type: 'Feature', geometry: { type: 'Point', coordinates: [safeLng, safeLat] }, properties: { type: 'safezone', name: 'Evacuation Center Alpha' } }
+          ]
+        });
+        setViewState({ longitude: (startLng + safeLng)/2, latitude: (startLat + safeLat)/2, zoom: 11.5 });
+      }
+    } catch (e) { console.error("OSRM Error", e); alert("Evacuation route unavailable: No road network found near this location."); }
+    setIsRouting(false);
+  };
+
+
+  // DVR Replay State
+  const [dvrMode, setDvrMode] = useState(false);
+  const [dvrEvent, setDvrEvent] = useState<string | null>(null);
+  useEffect(() => { if (dvrMode) return; setEvacuationRoute(null); }, [currentZone.id, dvrMode]);
+
+  const startDvrReplay = (eventName: string) => {
+    setDvrEvent(eventName);
+    setDvrMode(true);
+    setShowLayers(false);
+    
+    if (eventName === '2024 Wayanad') {
+       setViewState({ longitude: 76.0822, latitude: 11.5549, zoom: 14.5 });
+       setCurrentZone({ id: 'wayanad_1', name: 'Wayanad, KL', type: 'Western Ghats', lng: 76.0822, lat: 11.5549, slope: 62.0, aspect: 180, curvature: -0.9, twi: 12.5 });
+    } else if (eventName === '2013 Kedarnath') {
+       setViewState({ longitude: 79.0669, latitude: 30.7352, zoom: 14.0 });
+       setCurrentZone({ id: 'kedar_1', name: 'Kedarnath, UK', type: 'Himalayan Slopes', lng: 79.0669, lat: 30.7352, slope: 75.0, aspect: 220, curvature: -1.2, twi: 14.0 });
     }
-    const ws = new WebSocket(`${API_BASE.replace("http", "ws")}/ws/telemetry/${currentZone.id}`);
+  };
+
+  useEffect(() => {
+    if (!dvrMode || !dvrEvent) return;
+    setLoading(true);
+    setTelemetry([]);
+    setTimeout(() => {
+       const syntheticRain = Array(25).fill(10).concat([45, 90, 150, 280, 420]);
+       setRainData(syntheticRain);
+       setData({
+         susceptibility_probability: 0.98,
+         trigger_probability: 0.99,
+         final_score: 98.7,
+         risk_level: 'CRITICAL',
+         reason_code: 'HIGH_TERRAIN_SUSCEPTIBILITY+HIGH_ANTECEDENT_RAINFALL'
+       });
+       setLoading(false);
+       
+       setTelemetry([
+         { id: '1', node_id: 'NODE-Alpha (Crest)', type: 'GPS Displacement', val: '45.2mm', status: 'critical', time: '-1hr' },
+         { id: '2', node_id: 'NODE-Beta (Mid-Slope)', type: 'Inclinometer', val: '4.5°/h', status: 'critical', time: '-1hr' },
+         { id: '3', node_id: 'NODE-Gamma (Base)', type: 'Soil Moisture', val: '99.9%', status: 'critical', time: '-2hr' },
+       ]);
+    }, 1500);
+  }, [dvrMode, dvrEvent]);
+
+
+  useEffect(() => {
+    if (dvrMode) return;
+    setLoading(true);
+    setTelemetry([]);
+    setData(null);
+
+    // AbortController prevents stale responses from overwriting new zone's data
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const fetchRain = async () => {
+      try {
+        let fetchedRainData: number[] = [];
+        if (currentZone.id.startsWith('global_')) {
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${currentZone.lat}&longitude=${currentZone.lng}&daily=rain_sum&past_days=30&forecast_days=1`,
+            { signal }
+          );
+          if (!res.ok) throw new Error('Open-Meteo API error');
+          const json = await res.json();
+          fetchedRainData = (json?.daily?.rain_sum ?? []).slice(0, 30).map((r: any) => r === null ? 0 : r);
+        } else {
+          const res = await fetch(`${API_BASE}/zones/${currentZone.id}/rainfall`, { signal });
+          if (!res.ok) throw new Error('Backend zone rainfall error');
+          const json = await res.json();
+          fetchedRainData = Array.isArray(json) ? json : [];
+        }
+        setRainData(fetchedRainData);
+
+        const simRes = await fetch(`${API_BASE}/simulate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slope_deg: currentZone.slope,
+            aspect_deg: currentZone.aspect ?? 180.0,
+            curvature: currentZone.curvature ?? -0.5,
+            twi: currentZone.twi,
+            rainfall_seq: fetchedRainData
+          }),
+          signal
+        });
+        if (!simRes.ok) throw new Error('Simulate endpoint error');
+        const simJson = await simRes.json();
+        setData(simJson);
+      } catch (e: any) {
+        if (e.name !== 'AbortError') {
+          console.error('[SlopeGuard] Fetch error:', e.message);
+          setData({ final_score: 0, risk_level: 'LOW', reason_code: 'API_UNAVAILABLE', susceptibility_probability: 0, trigger_probability: 0 });
+        }
+      } finally {
+        if (!signal.aborted) setLoading(false);
+      }
+    };
+
+    fetchRain();
+
+    // WebSocket for live telemetry
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSING && wsRef.current.readyState !== WebSocket.CLOSED) wsRef.current.close();
+    const ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/telemetry/${currentZone.id}`);
     wsRef.current = ws;
-    ws.onmessage = (event) => { setTelemetry(prev => [JSON.parse(event.data), ...prev].slice(0, 5)); };
-    return () => { ws.close(); wsRef.current = null; };
-  }, [currentZone.id]);
+    ws.onmessage = (event) => {
+      try {
+        setTelemetry(prev => [JSON.parse(event.data), ...prev].slice(0, 5));
+      } catch {}
+    };
+    ws.onerror = () => console.warn('[SlopeGuard] WebSocket error for zone', currentZone.id);
+
+    return () => {
+      controller.abort();
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [currentZone.id, currentZone.lat, currentZone.lng, currentZone.slope, currentZone.aspect, currentZone.curvature, currentZone.twi, dvrMode]);
 
   const searchResults = SEARCH_DB.filter(z => 
     z.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -73,8 +243,14 @@ function App() {
   );
 
   const handleFlyTo = (zone: any) => {
-    setViewState({ longitude: zone.lng, latitude: zone.lat, zoom: 15.5 });
-    setCurrentZone({ id: zone.id, name: zone.name, type: zone.type, lng: zone.lng, lat: zone.lat, slope: zone.slope, aspect: zone.aspect ?? 180.0, curvature: zone.curvature ?? -0.5, twi: zone.twi });
+    if (zone.isHistorical) {
+      startDvrReplay(zone.eventName);
+    } else {
+      setDvrMode(false);
+      setDvrEvent(null);
+      setViewState({ longitude: zone.lng, latitude: zone.lat, zoom: 15.5 });
+      setCurrentZone({ id: zone.id, name: zone.name, type: zone.type, lng: zone.lng, lat: zone.lat, slope: zone.slope, aspect: zone.aspect ?? 180.0, curvature: zone.curvature ?? -0.5, twi: zone.twi });
+    }
     setShowSearch(false);
     setSearchQuery("");
   };
@@ -161,6 +337,37 @@ function App() {
               }}
             />
           </Source>
+          {/* EVACUATION ROUTE LAYER */}
+          {evacuationRoute && (
+            <Source id="evac-route" type="geojson" data={evacuationRoute}>
+              {/* Glowing outer line for the route */}
+              <Layer 
+                id="evac-route-glow" 
+                type="line" 
+                filter={['==', 'type', 'route']}
+                paint={{ 'line-color': '#eab308', 'line-width': 8, 'line-opacity': 0.4, 'line-blur': 4 }} 
+              />
+              {/* Inner dashed line for the route */}
+              <Layer 
+                id="evac-route-line" 
+                type="line" 
+                filter={['==', 'type', 'route']}
+                paint={{ 'line-color': '#eab308', 'line-width': 3, 'line-dasharray': [2, 2] }} 
+              />
+              {/* Safe Zone Marker */}
+              <Layer 
+                id="safe-zone-circle" 
+                type="circle" 
+                filter={['==', 'type', 'safezone']}
+                paint={{ 'circle-radius': 12, 'circle-color': '#10b981', 'circle-stroke-width': 3, 'circle-stroke-color': '#ffffff' }} 
+              />
+              <Layer
+                id="safe-zone-label" type="symbol" filter={['==', 'type', 'safezone']}
+                layout={{ 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top' }}
+                paint={{ 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 2 }}
+              />
+            </Source>
+          )}
         </Map>
       </div>
 
@@ -177,6 +384,37 @@ function App() {
         </div>
 
         <div className="flex gap-3 pointer-events-auto relative">
+          <div className="relative">
+            <button 
+              onClick={() => { const turningOff = dvrMode; setDvrMode(!dvrMode); setShowLayers(false); setShowSearch(false); if (turningOff) { setDvrEvent(null); setCurrentZone(SEARCH_DB[3]); } }}
+              className={`glass-button px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all hover:bg-white/10 ${dvrMode ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'text-gray-300'}`}
+            >
+               <Radio size={18} className={dvrMode ? "animate-pulse" : ""} /> <span className="text-sm font-semibold tracking-wide">DVR Replay</span>
+            </button>
+
+            {/* DVR DROPDOWN */}
+            <AnimatePresence>
+              {dvrMode && !dvrEvent && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute top-14 left-0 w-64 glass-panel rounded-3xl p-3"
+                >
+                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2 py-2">Select Historical Event</h4>
+                  <div className="space-y-1">
+                    <button onClick={() => startDvrReplay('2024 Wayanad')} className="w-full text-left px-3 py-3 rounded-xl hover:bg-white/10 text-sm font-semibold text-white transition-all flex justify-between items-center group">
+                      2024 Wayanad Landslides <span className="opacity-0 group-hover:opacity-100 text-red-400 text-[10px] tracking-widest font-black uppercase">Play</span>
+                    </button>
+                    <button onClick={() => startDvrReplay('2013 Kedarnath')} className="w-full text-left px-3 py-3 rounded-xl hover:bg-white/10 text-sm font-semibold text-white transition-all flex justify-between items-center group">
+                      2013 Kedarnath Floods <span className="opacity-0 group-hover:opacity-100 text-red-400 text-[10px] tracking-widest font-black uppercase">Play</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button 
             onClick={() => { setShowSearch(!showSearch); setShowLayers(false); }}
             className={`glass-button px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all hover:bg-white/10 ${showSearch ? 'bg-white/10 border-white/30 text-white' : 'text-gray-300'}`}
@@ -211,28 +449,47 @@ function App() {
                   />
                 </div>
                 
-                <div className="mt-2 space-y-1">
-                  {searchQuery && searchResults.length === 0 ? (
-                    <div className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center justify-center text-xs text-gray-400">
-                      No zones matching "{searchQuery}"
+                <div className="mt-2 space-y-1 max-h-[300px] overflow-y-auto">
+                  {(searchResults.length > 0 || globalResults.length > 0) ? (
+                    <>
+                      {searchResults.map(zone => (
+                        <button 
+                          key={zone.id}
+                          onClick={() => handleFlyTo(zone)}
+                          className={`w-full flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-colors text-left ${zone.isHistorical ? 'bg-yellow-500/10 hover:bg-yellow-500/20' : ''}`}
+                        >
+                           <div className="w-8 h-8 flex-shrink-0 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                             <Crosshair size={14} className={zone.isHistorical ? 'text-yellow-500' : 'text-gray-400'} />
+                           </div>
+                           <div>
+                             <div className={`text-sm font-semibold ${zone.isHistorical ? 'text-yellow-500' : 'text-white'}`}>{zone.name}</div>
+                             <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">{zone.id} • {zone.type}</div>
+                           </div>
+                        </button>
+                      ))}
+                      
+                      {globalResults.length > 0 && <div className="text-[9px] font-black tracking-widest text-blue-400 pt-2 pb-1 pl-2 uppercase sticky top-0 bg-black/80 backdrop-blur-md z-10">Global Satellites</div>}
+                      {globalResults.map((zone: any) => (
+                        <button 
+                          key={zone.id}
+                          onClick={() => handleFlyTo(zone)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-blue-500/10 rounded-xl transition-colors text-left group"
+                        >
+                           <div className="w-8 h-8 flex-shrink-0 rounded-full bg-blue-500/5 flex items-center justify-center border border-blue-500/10 group-hover:border-blue-500/30">
+                             <MapPin size={14} className="text-blue-400" />
+                           </div>
+                           <div>
+                             <div className="text-sm font-semibold text-blue-100 group-hover:text-blue-400 transition-colors">{zone.name.split(',')[0]}</div>
+                             <div className="text-[10px] text-blue-500/70 uppercase tracking-widest mt-0.5">OPEN-METEO • {zone.lat.toFixed(2)}, {zone.lng.toFixed(2)}</div>
+                           </div>
+                        </button>
+                      ))}
+                    </>
+                  ) : searchQuery ? (
+                    <div className="p-4 bg-white/5 rounded-xl border border-white/5 flex flex-col items-center justify-center text-xs text-gray-400 gap-2">
+                      {isSearching ? 'Connecting to Global Satellites...' : `No locations found for "${searchQuery}"`}
                     </div>
-                  ) : (
-                    searchResults.map(zone => (
-                      <button 
-                        key={zone.id}
-                        onClick={() => handleFlyTo(zone)}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-colors text-left"
-                      >
-                         <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-                           <Crosshair size={14} className="text-gray-400" />
-                         </div>
-                         <div>
-                           <div className="text-sm font-semibold text-white">{zone.name}</div>
-                           <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">{zone.id} • {zone.type}</div>
-                         </div>
-                      </button>
-                    ))
-                  )}
+                  ) : null}
                 </div>
               </motion.div>
             )}
@@ -294,8 +551,8 @@ function App() {
                   <MapPin size={14} /> Zone ID: ZN-{currentZone.id} • {currentZone.type}
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-red-500/10 text-red-400 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> Live
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase border shadow-sm ${dvrEvent ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]'}`}>
+                <span className={`w-2 h-2 rounded-full animate-pulse ${dvrEvent ? 'bg-yellow-500' : 'bg-red-500'}`} /> {dvrEvent ? 'REPLAY' : 'Live'}
               </div>
             </div>
 
@@ -310,7 +567,7 @@ function App() {
                     {data.final_score?.toFixed(1)}
                   </div>
                   <div className="pb-3">
-                    <div className="text-sm font-bold text-red-400 tracking-wide">{data.risk_level} RISK</div>
+                    <div className={`text-sm font-bold tracking-wide ${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).title}`}>{data.risk_level} RISK</div>
                     <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1 font-semibold">AI Confidence: High</div>
                   </div>
                 </div>
@@ -367,14 +624,14 @@ function App() {
                   whileHover={{ y: -2, scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setActiveModal('factor')}
-                  className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex gap-4 items-start hover:bg-red-500/20 transition-all text-left focus:outline-none shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_20px_rgba(239,68,68,0.2)] group"
+                  className={`w-full ${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).boxBg} border ${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).boxBorder} rounded-2xl p-4 flex gap-4 items-start transition-all text-left focus:outline-none shadow-sm group`}
                 >
-                  <div className="p-2 bg-red-500/20 rounded-lg group-hover:bg-red-500/30 transition-colors">
-                     <AlertTriangle className="text-red-400 shrink-0" size={16} />
+                  <div className={`p-2 ${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).iconBg} rounded-lg transition-colors`}>
+                     <AlertTriangle className={`${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).icon} shrink-0`} size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Primary Factor</h4>
-                    <p className="text-xs text-red-300 font-bold tracking-wide">
+                    <h4 className={`text-[10px] font-black ${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).label} uppercase tracking-widest mb-1`}>Primary Factor</h4>
+                    <p className={`text-xs ${(riskStyles[data.risk_level as keyof typeof riskStyles] || riskStyles.LOW).desc} font-bold tracking-wide`}>
                       {data.reason_code?.replace(/_/g, ' ') || 'AWAITING TELEMETRY'}
                     </p>
                   </div>
@@ -390,7 +647,7 @@ function App() {
               <motion.button 
                 whileHover={{ y: -3, scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => { setViewState({ longitude: 91.755, latitude: 26.155, zoom: 16 }); setActiveModal('hospital'); }}
+                onClick={() => { setViewState({ longitude: currentZone.lng - 0.005, latitude: currentZone.lat + 0.015, zoom: 16 }); setActiveModal('hospital'); }}
                 className="w-full flex items-center justify-between bg-black/40 p-3.5 rounded-2xl border border-white/5 hover:bg-white/10 hover:border-white/20 transition-all text-left focus:outline-none"
               >
                 <div className="flex items-center gap-3.5">
@@ -398,17 +655,17 @@ function App() {
                     <Activity size={16} className="text-blue-400" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-white">District Hospital</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wider font-bold">Medical Facility • 2.1km</div>
+                    <div className="text-sm font-semibold text-white">{currentZone.name.split(",")[0]} District Hospital</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wider font-bold">Medical Facility • {(Math.abs(currentZone.lat * 0.07 + currentZone.lng * 0.03) % 3.5 + 0.8).toFixed(1)}km</div>
                   </div>
                 </div>
-                <div className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-lg tracking-widest shadow-sm">100% EXPOSURE</div>
+                {data && <div className={`text-[9px] font-black px-2.5 py-1.5 rounded-lg tracking-widest shadow-sm ${data.risk_level === "CRITICAL" || data.risk_level === "HIGH" ? "text-red-400 bg-red-500/10 border border-red-500/20" : data.risk_level === "MEDIUM" ? "text-yellow-400 bg-yellow-500/10 border border-yellow-500/20" : "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"}`}>{data.risk_level === "CRITICAL" ? "100% EXPOSURE" : data.risk_level === "HIGH" ? "HIGH EXPOSURE" : data.risk_level === "MEDIUM" ? "MED EXPOSURE" : "LOW EXPOSURE"}</div>}
               </motion.button>
 
               <motion.button 
                 whileHover={{ y: -3, scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => { setViewState({ longitude: 91.730, latitude: 26.170, zoom: 16 }); setActiveModal('bridge'); }}
+                onClick={() => { setViewState({ longitude: currentZone.lng + 0.010, latitude: currentZone.lat - 0.020, zoom: 16 }); setActiveModal('bridge'); }}
                 className="w-full flex items-center justify-between bg-black/40 p-3.5 rounded-2xl border border-white/5 hover:bg-white/10 hover:border-white/20 transition-all text-left focus:outline-none"
               >
                 <div className="flex items-center gap-3.5">
@@ -416,12 +673,29 @@ function App() {
                     <Layers size={16} className="text-orange-400" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-white">Hwy Bridge 42</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wider font-bold">Transit Route • 0.8km</div>
+                    <div className="text-sm font-semibold text-white">{currentZone.name.split(",")[0]} Route 42</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wider font-bold">Transit Route • {(Math.abs(currentZone.lng * 0.05 + currentZone.lat * 0.02) % 1.5 + 0.4).toFixed(1)}km</div>
                   </div>
                 </div>
                 <div className="text-[9px] font-black text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2.5 py-1.5 rounded-lg tracking-widest shadow-sm">EVAC ROUTE</div>
               </motion.button>
+              
+              {/* EVACUATION BUTTON */}
+              {(data?.risk_level === 'HIGH' || data?.risk_level === 'CRITICAL') && (
+                 <motion.button
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                   onClick={calculateEvacuation}
+                   className="w-full mt-4 flex items-center justify-center gap-2 bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 border border-yellow-500/30 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all shadow-[0_0_15px_rgba(234,179,8,0.2)]"
+                 >
+                   {isRouting ? (
+                     <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                   ) : (
+                     <Navigation size={14} /> 
+                   )}
+                   {isRouting ? 'CALCULATING ROUTE...' : 'MAP EVACUATION ROUTE'}
+                 </motion.button>
+              )}
             </div>
           </div>
         </motion.aside>
@@ -464,9 +738,11 @@ function App() {
         <div className="glass-panel rounded-[1.5rem] p-4 flex-1">
            <div className="flex items-center justify-between mb-5">
              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Radio size={12} className="text-blue-400 animate-pulse" /> Real-Time Packet Stream
+                <Radio size={12} className={dvrEvent ? "text-red-400 animate-pulse" : "text-blue-400 animate-pulse"} /> {dvrEvent ? "DVR HISTORICAL LOG" : "Real-Time Packet Stream"}
              </h3>
-             <span className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-500/20 shadow-sm">TCP/IP</span>
+             <span className={`text-[9px] font-black px-2 py-1 rounded-lg border shadow-sm ${dvrEvent ? 'text-red-400 bg-red-500/10 border-red-500/20' : 'text-blue-400 bg-blue-500/10 border-blue-500/20'}`}>
+                {dvrEvent ? "ARCHIVE" : "TCP/IP"}
+             </span>
            </div>
            
            <div className="space-y-3">
@@ -578,12 +854,12 @@ function App() {
                            <Activity size={28} className="text-blue-400" />
                         </div>
                         <div>
-                           <h3 className="text-2xl font-black text-white tracking-tight">District Hospital</h3>
+                           <h3 className="text-2xl font-black text-white tracking-tight">{currentZone.name.split(",")[0]} District Hospital</h3>
                            <p className="text-[10px] text-red-400 font-black uppercase tracking-[0.2em] mt-1">100% Slide Exposure</p>
                         </div>
                       </div>
                       <div className="text-right">
-                         <div className="text-3xl font-black text-white">450</div>
+                         <div className="text-3xl font-black text-white">{Math.round(200 + currentZone.slope * 4)}</div>
                          <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Active Beds</div>
                       </div>
                     </div>
@@ -619,7 +895,7 @@ function App() {
                            <Layers size={28} className="text-orange-400" />
                         </div>
                         <div>
-                           <h3 className="text-2xl font-black text-white tracking-tight">Hwy Bridge 42</h3>
+                           <h3 className="text-2xl font-black text-white tracking-tight">{currentZone.name.split(",")[0]} Route 42</h3>
                            <p className="text-[10px] text-orange-400 font-black uppercase tracking-[0.2em] mt-1">Primary Evac Route</p>
                         </div>
                       </div>
@@ -744,9 +1020,9 @@ function App() {
                             <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Elevation</div>
                          </div>
-                         <div className="text-3xl font-black text-white tracking-tight">320<span className="text-lg text-yellow-500 ml-1">m</span></div>
+                         <div className="text-3xl font-black text-white tracking-tight">{Math.round(Math.abs(currentZone.lat * currentZone.slope * 2.5))}<span className="text-lg text-yellow-500 ml-1">m</span></div>
                          <div className="mt-5 h-1.5 w-full bg-black/60 rounded-full overflow-hidden border border-white/5">
-                            <motion.div initial={{width:0}} animate={{width:"32%"}} transition={{delay:0.2, type:"spring", stiffness:100}} className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.6)]" />
+                            <motion.div initial={{width:0}} animate={{width:`${Math.min(95, currentZone.slope * 1.2).toFixed(0)}%`}} transition={{delay:0.2, type:"spring", stiffness:100}} className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.6)]" />
                          </div>
                        </div>
 
@@ -758,7 +1034,7 @@ function App() {
                          </div>
                          <div className="text-3xl font-black text-white tracking-tight">{currentZone.twi}<span className="text-lg text-red-500 ml-1"></span></div>
                          <div className="mt-5 h-1.5 w-full bg-black/60 rounded-full overflow-hidden border border-white/5">
-                            <motion.div initial={{width:0}} animate={{width:"54%"}} transition={{delay:0.3, type:"spring", stiffness:100}} className="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.6)]" />
+                            <motion.div initial={{width:0}} animate={{width:`${Math.min(95, (currentZone.twi / 20) * 100).toFixed(0)}%`}} transition={{delay:0.3, type:"spring", stiffness:100}} className="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.6)]" />
                          </div>
                        </div>
                     </div>
@@ -779,7 +1055,7 @@ function App() {
               <div className="flex items-center gap-3">
                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Source: Open-Meteo Archive</div>
                  <div className="text-xs font-black bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-xl border border-blue-500/20 shadow-inner">
-                   TOTAL: {rainData.reduce((a, b) => a + b, 0).toFixed(1)}mm
+                   TOTAL: {(Array.isArray(rainData) ? rainData : []).reduce((a, b) => a + b, 0).toFixed(1)}mm
                  </div>
               </div>
             </div>
@@ -791,17 +1067,8 @@ function App() {
                  const maxVal = Math.max(...rainData, 20);
                  const heightPct = Math.max(5, (val / maxVal) * 100);
                  
-               
-  const dynamicNodes = {
-    type: 'FeatureCollection',
-    features: [
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [currentZone.lng - 0.003, currentZone.lat + 0.005] }, properties: { name: 'NODE-Alpha', status: 'online' } },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [currentZone.lng + 0.001, currentZone.lat + 0.001] }, properties: { name: 'NODE-Beta', status: 'online' } },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [currentZone.lng + 0.004, currentZone.lat - 0.004] }, properties: { name: 'NODE-Gamma', status: 'offline' } }
-    ]
-  };
 
-  return (
+                 return (
                    <div key={i} className="flex-1 flex flex-col justify-end group/bar relative h-full">
                      {/* Hover Tooltip */}
                      <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity z-30 pointer-events-none flex flex-col items-center">

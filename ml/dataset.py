@@ -61,7 +61,7 @@ def generate_synthetic_data(num_zones=500, num_days=30):
 
         # FIX #6: Trigger uses antecedent moisture + peak intensity.
         # Physics basis: saturated soil + intense event = debris flow.
-        antecedent_7day = rain_seq[-8:-1].sum()   # Last 7 days (not including today)
+        antecedent_7day = rain_seq[-7:].sum()   # Last 7 days (not including today)
         peak_intensity = rain_seq[-3:].max()       # Max daily rain in last 3 days
 
         # Probabilistic trigger — not a hard threshold

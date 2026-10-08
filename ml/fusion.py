@@ -29,7 +29,7 @@ def calculate_final_risk(susc_prob: float, trig_prob: float) -> tuple[float, str
     # Neither factor alone causes failure — both must contribute.
     # Terrain weight: 0.4, Rainfall weight: 0.6 (rainfall is the proximate trigger).
     # Using weighted geometric mean of the complement:
-    joint_failure = 1.0 - ((1.0 - susc_prob) ** 0.4) * ((1.0 - trig_prob) ** 0.6)
+    joint_failure = susc_prob * trig_prob  # True AND gate: requires BOTH unstable terrain AND severe rainfall
     final_score = round(joint_failure * 100, 2)
 
     # Risk thresholds (geotechnically calibrated):

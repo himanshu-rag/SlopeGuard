@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from api_ml import risk_engine  # Fail fast at startup if models not found # top-level
 from pydantic import BaseModel, validator
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -16,7 +17,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,7 +61,7 @@ class SimulationRequest(BaseModel):
 async def simulate_risk(req: SimulationRequest):
     # FIX #8: Return proper HTTP 500 on error, not HTTP 200 with error body
     try:
-        from api_ml import risk_engine
+        from api_ml import risk_engine  # Imported at module level; any failure raises at startup
         susc_prob   = risk_engine.predict_susceptibility(
             req.slope_deg, req.aspect_deg, req.curvature, req.twi
         )
@@ -188,6 +189,7 @@ async def submit_field_report(report: FieldReportCreate, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="Zone not found")
 
     new_report = FieldReport(
+        zone_id=getattr(report, "zone_id", None),  # FIX M-8
         geom=f"SRID=4326;POINT({report.longitude} {report.latitude})",
         reporter_id=report.reporter_id,
         crack_width=report.crack_width,
@@ -209,16 +211,24 @@ async def submit_field_report(report: FieldReportCreate, db: Session = Depends(g
 # readings calibrated to the zone's actual terrain properties.
 # ─────────────────────────────────────────────────────────────
 @app.websocket("/ws/telemetry/{zone_id}")
-async def websocket_endpoint(websocket: WebSocket, zone_id: int):
+async def websocket_endpoint(websocket: WebSocket, zone_id: str):
     await websocket.accept()
 
     # Load zone terrain data to calibrate sensor ranges
     db = SessionLocal()
     try:
         from models import TerrainZone
-        zone = db.query(TerrainZone).filter(TerrainZone.id == zone_id).first()
-        slope = zone.slope_deg if zone else 35.0
-        twi   = zone.twi       if zone else 7.0
+        if zone_id.startswith("global_"):
+            slope = 40.0
+            twi = 8.0
+        elif zone_id.lstrip('-').isdigit():
+            zone = db.query(TerrainZone).filter(TerrainZone.id == int(zone_id)).first()
+            slope = zone.slope_deg if zone else 35.0
+            twi   = zone.twi       if zone else 7.0
+        else:
+            # Historical / unknown non-integer IDs — use defaults
+            slope = 50.0
+            twi = 10.0
     finally:
         db.close()
 

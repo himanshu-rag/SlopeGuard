@@ -31,7 +31,7 @@ print("Generating data...")
 _, rainfall_df = generate_synthetic_data(num_zones=500, num_days=30)
 
 X = np.stack(rainfall_df['rainfall_sequence'].values).astype(np.float32)
-X = X / (X.max() + 1e-8)
+X = X / 500.0  # Normalize to a global 500mm absolute maximum
 X = X.reshape(-1, 30, 1)
 y = rainfall_df['trigger_event'].values.astype(np.float32)
 

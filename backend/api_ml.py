@@ -64,14 +64,14 @@ class RiskEngine:
         if self.trig_session:
             # Normalize (max observed in the sequence)
             arr   = np.array(seq, dtype=np.float32)
-            arr   = arr / (arr.max() + 1e-8)
+            arr   = arr / 500.0  # Must match global 500mm norm from training
             x     = arr.reshape(1, 30, 1)
             outs  = self.trig_session.run(None, {self._onnx_input_name: x})
             return float(outs[0][0][0])
 
         # Fallback: antecedent rainfall heuristic
         arr           = np.array(seq)
-        antecedent_7d = arr[-8:-1].sum()
+        antecedent_7d = arr[-7:].sum()  # Last 7 days including today
         peak_3d       = arr[-3:].max()
         log_odds      = -4.5 + 0.06 * antecedent_7d + 0.10 * peak_3d
         return float(1.0 / (1.0 + np.exp(-log_odds)))

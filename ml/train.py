@@ -88,8 +88,7 @@ def train_trigger_model(rainfall_df):
 
     X = np.stack(rainfall_df['rainfall_sequence'].values).astype(np.float32)
     # Normalize by max observed rainfall to keep values in [0, 1]
-    X_max = X.max()
-    X = X / (X_max + 1e-8)
+    X = X / 500.0  # Normalize by global max 500mm to match api_ml.py
     X = X.reshape(-1, X.shape[1], 1)   # (Batch, SeqLen=30, Features=1)
     y = rainfall_df['trigger_event'].values.astype(np.float32)
 
