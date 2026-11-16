@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MapPin, Send, CheckCircle, X } from "lucide-react";
+import { MapPin, Send, CheckCircle, X, Image as ImageIcon } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -10,6 +10,7 @@ import {
   isCustomZone,
 } from "../data/search-db";
 import type { Zone } from "../data/types";
+import { capturePhoto, isMobile } from "../capacitor";
 
 interface FieldReportFormProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export default function FieldReportForm({
     vegetation: "",
     notes: "",
   });
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
 
   // When location is captured, auto-select nearest zone + reverse geocode
   useEffect(() => {
@@ -98,6 +100,18 @@ export default function FieldReportForm({
     }
   };
 
+  const handleCapturePhoto = async () => {
+    setError(null);
+    try {
+      const dataUrl = await capturePhoto();
+      if (dataUrl) {
+        setPhotoDataUrl(dataUrl);
+      }
+    } catch (err: any) {
+      setError("Failed to capture photo: " + (err.message || String(err)));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -128,6 +142,7 @@ export default function FieldReportForm({
           seepage: form.seepage,
           vegetation: form.vegetation || undefined,
           notes: form.notes || undefined,
+          photo_data_url: photoDataUrl || undefined,
         }),
       });
       if (!res.ok) {
@@ -207,6 +222,7 @@ export default function FieldReportForm({
                   });
                   setLocation(null);
                   setPlaceName(null);
+                  setPhotoDataUrl(null);
                 }}
                 className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-black rounded-2xl text-xs uppercase tracking-widest transition-colors"
               >
@@ -259,6 +275,46 @@ export default function FieldReportForm({
                         </p>
                       )}
                     </>
+                  )}
+                </div>
+ 
+                {/* Photo Capture */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <ImageIcon size={14} className="text-orange-400" /> Photo Evidence
+                  </label>
+                  <button
+                    onClick={handleCapturePhoto}
+                    disabled={loading}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-left text-sm font-semibold text-white hover:bg-white/10 transition-colors flex items-center gap-3 disabled:opacity-50"
+                  >
+                    {photoDataUrl ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Photo captured — tap to retake
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)] animate-pulse" />
+                        {isMobile() ? "Capture Photo (Camera)" : "Select Photo (File)"}
+                      </>
+                    )}
+                  </button>
+                  {photoDataUrl && (
+                    <div className="relative w-full h-32 rounded-2xl overflow-hidden border border-white/10 bg-black/30">
+                      <img
+                        src={photoDataUrl}
+                        alt="Field report photo"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => setPhotoDataUrl(null)}
+                        className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-red-500 transition-colors"
+                        title="Remove photo"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
 

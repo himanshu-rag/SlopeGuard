@@ -11,6 +11,11 @@ import {
   SEARCH_DB,
   CUSTOM_LOCATION_ID,
 } from './data/search-db';
+import {
+  initCapacitor,
+  hideSplashScreen,
+  getCurrentPosition,
+} from './capacitor';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
 
@@ -27,6 +32,12 @@ function App() {
   const [data, setData] = useState<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Initialize Capacitor native plugins on mount
+  useEffect(() => {
+    initCapacitor();
+    hideSplashScreen();
+  }, []);
 
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
   const [showFieldReport, setShowFieldReport] = useState(false);
@@ -227,19 +238,9 @@ function App() {
   };
 
   const handleMyLocation = async () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation not supported by your browser.");
-      return;
-    }
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
-        });
-      });
-      const { latitude, longitude } = pos.coords;
+      const pos = await getCurrentPosition();
+      const { latitude, longitude } = pos;
 
       // Center the map on user's location
       setViewState({ longitude, latitude, zoom: 15 });
