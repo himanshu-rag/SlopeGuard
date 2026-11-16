@@ -79,7 +79,8 @@ class Infrastructure(Base):
 class FieldReport(Base):
     __tablename__ = "field_reports"
 
-    id = Column(PG_UUID(as_uuid=True) if IS_POSTGRES else String(36), primary_key=True, default=uuid.uuid4)
+    id = Column(String(36) if not IS_POSTGRES else PG_UUID(as_uuid=True), primary_key=True, default=lambda: str(uuid.uuid4()) if not IS_POSTGRES else uuid.uuid4)
+    zone_id = Column(Integer, ForeignKey("terrain_zones.id"), nullable=True)
     geom = Column(_geom('POINT'), nullable=False)
     reporter_id = Column(String)
     photo_url = Column(String)

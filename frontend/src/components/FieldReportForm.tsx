@@ -1,7 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MapPin, Send, CheckCircle, X } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+
+import {
+  SEARCH_DB,
+  findNearestZone,
+  CUSTOM_LOCATION_ID,
+  isCustomZone,
+} from "../data/search-db";
+import type { Zone } from "../data/types";
 
 interface FieldReportFormProps {
   isOpen: boolean;
@@ -21,9 +29,11 @@ export default function FieldReportForm({
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [placeName, setPlaceName] = useState<string | null>(null);
+  const [reverseGeocoding, setReverseGeocoding] = useState(false);
 
   const [form, setForm] = useState({
-    zone_id: "",
+    zone_id: "" as string,
     reporter_id: "",
     crack_width: "",
     seepage: false,
@@ -31,8 +41,35 @@ export default function FieldReportForm({
     notes: "",
   });
 
+  // When location is captured, auto-select nearest zone + reverse geocode
+  useEffect(() => {
+    if (!location) return;
+
+    // Auto-select nearest predefined zone
+    const nearest = findNearestZone(location.lat, location.lng);
+    if (nearest) {
+      setForm((prev) => ({ ...prev, zone_id: nearest.id }));
+    }
+
+    // Reverse geocode via Nominatim to show place name
+    setReverseGeocoding(true);
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${location.lat}&lon=${location.lng}&accept-language=en`,
+      { headers: { "Accept-Language": "en" } }
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        setPlaceName(data?.display_name || null);
+        setReverseGeocoding(false);
+      })
+      .catch(() => {
+        setReverseGeocoding(false);
+      });
+  }, [location]);
+
   const handleGetLocation = async () => {
     setError(null);
+    setPlaceName(null);
     if (!navigator.geolocation) {
       setLocationError("Geolocation not supported by your browser.");
       return;
@@ -65,15 +102,14 @@ export default function FieldReportForm({
       setError("Please capture your location first.");
       return;
     }
-    if (!form.zone_id) {
-      setError("Please select a zone.");
-      return;
-    }
     if (!form.reporter_id) {
       setError("Please enter your reporter ID.");
       return;
     }
 
+    // For custom locations, send the raw GPS coords. For predefined zones,
+    // the backend /reports endpoint still uses the lat/lng we send (not the
+    // zone's stored centroid), so this works for both.
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/reports`, {
@@ -82,7 +118,7 @@ export default function FieldReportForm({
         body: JSON.stringify({
           longitude: location.lng,
           latitude: location.lat,
-          zone_id: parseInt(form.zone_id, 10),
+          zone_id: isCustomZone(form.zone_id) ? null : parseInt(form.zone_id, 10),
           reporter_id: form.reporter_id,
           crack_width: form.crack_width ? parseFloat(form.crack_width) : undefined,
           seepage: form.seepage,
@@ -103,12 +139,24 @@ export default function FieldReportForm({
     }
   };
 
-  const zones = [
-    { id: "2", name: "Shimla, HP" },
-    { id: "3", name: "Darjeeling, WB" },
-    { id: "4", name: "Munnar, KL" },
-    { id: "5", name: "Guwahati, AS" },
+  // Build zone options: predefined zones + optional custom location
+  const zoneOptions = [
+    ...SEARCH_DB.filter((z) => !z.isHistorical),
+    ...(location
+      ? [
+          {
+            id: CUSTOM_LOCATION_ID,
+            name: `Custom Location (${location.lat.toFixed(4)}, ${location.lng.toFixed(4)})`,
+            lat: location.lat,
+            lng: location.lng,
+            type: "Anywhere",
+          } as Zone,
+        ]
+      : []),
   ];
+
+  const selectedZone = zoneOptions.find((z) => z.id === form.zone_id);
+  const isCustom = isCustomZone(form.zone_id);
 
   return (
     <>
@@ -145,8 +193,16 @@ export default function FieldReportForm({
               <button
                 onClick={() => {
                   setSubmitted(false);
-                  setForm({ zone_id: "", reporter_id: "", crack_width: "", seepage: false, vegetation: "", notes: "" });
+                  setForm({
+                    zone_id: "",
+                    reporter_id: "",
+                    crack_width: "",
+                    seepage: false,
+                    vegetation: "",
+                    notes: "",
+                  });
                   setLocation(null);
+                  setPlaceName(null);
                 }}
                 className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-black rounded-2xl text-xs uppercase tracking-widest transition-colors"
               >
@@ -181,9 +237,24 @@ export default function FieldReportForm({
                     <p className="text-[10px] text-red-400 font-bold">{locationError}</p>
                   )}
                   {location && (
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                      Lat: {location.lat.toFixed(6)} • Lng: {location.lng.toFixed(6)}
-                    </p>
+                    <>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                        Lat: {location.lat.toFixed(6)} • Lng: {location.lng.toFixed(6)}
+                      </p>
+                      {reverseGeocoding && (
+                        <p className="text-[10px] text-blue-400 font-bold animate-pulse">Looking up place…</p>
+                      )}
+                      {placeName && (
+                        <p className="text-[10px] text-emerald-400 font-bold">
+                          {placeName}
+                        </p>
+                      )}
+                      {selectedZone && !isCustom && (
+                        <p className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">
+                          Nearest zone: {selectedZone.name} (ZN-{selectedZone.id})
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -198,12 +269,17 @@ export default function FieldReportForm({
                     className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-red-500/50"
                   >
                     <option value="">Select a zone</option>
-                    {zones.map((z) => (
+                    {zoneOptions.map((z) => (
                       <option key={z.id} value={z.id}>
-                        {z.name} (ZN-{z.id})
+                        {z.name}
                       </option>
                     ))}
                   </select>
+                  {isCustom && (
+                    <p className="text-[10px] text-yellow-400 font-bold uppercase tracking-widest">
+                      Custom location — report will use your GPS coordinates
+                    </p>
+                  )}
                 </div>
 
                 {/* Reporter ID */}
@@ -286,7 +362,7 @@ export default function FieldReportForm({
 
                 <button
                   type="submit"
-                  disabled={loading || !location || !form.zone_id || !form.reporter_id}
+                  disabled={loading || !location || !form.reporter_id}
                   className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-2xl font-black text-white tracking-widest uppercase text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.4)]"
                 >
                   {loading ? (
@@ -294,7 +370,7 @@ export default function FieldReportForm({
                   ) : (
                     <Send size={14} />
                   )}
-                  {loading ? "SENDING..." : "SUBMIT FIELD REPORT"}
+                  {loading ? "SENDING…" : "SUBMIT FIELD REPORT"}
                 </button>
               </form>
             </>

@@ -236,7 +236,7 @@ async def get_zone_impact(zone_id: int, db: Session = Depends(get_db)):
 class FieldReportCreate(BaseModel):
     longitude:   float
     latitude:    float
-    zone_id:     int
+    zone_id:     Optional[int] = None   # null for custom/arbitrary locations
     reporter_id: str
     crack_width: Optional[float] = None
     seepage:     Optional[bool]  = False
@@ -247,21 +247,24 @@ class FieldReportCreate(BaseModel):
 @app.post("/reports")
 async def submit_field_report(report: FieldReportCreate, db: Session = Depends(get_db), _auth: bool = Depends(verify_api_key)):
     """Accepts a field report from the mobile app."""
-    from models import FieldReport, TerrainZone
+    from models import FieldReport
 
-    zone = db.query(TerrainZone).filter(TerrainZone.id == report.zone_id).first()
-    if not zone:
-        raise HTTPException(status_code=404, detail="Zone not found")
+    # Only validate zone existence when a zone_id is provided.
+    # Custom locations (zone_id=None) are accepted with raw GPS coords.
+    if report.zone_id is not None:
+        from models import TerrainZone
+        zone = db.query(TerrainZone).filter(TerrainZone.id == report.zone_id).first()
+        if not zone:
+            raise HTTPException(status_code=404, detail="Zone not found")
 
     new_report = FieldReport(
-        zone_id=getattr(report, "zone_id", None),  # FIX M-8
+        zone_id=report.zone_id,
         geom=f"SRID=4326;POINT({report.longitude} {report.latitude})",
         reporter_id=report.reporter_id,
         crack_width=report.crack_width,
         seepage=report.seepage,
         vegetation=report.vegetation,
         notes=report.notes,
-        # FIX #9: datetime.utcnow() is deprecated in Python 3.12+. Use timezone-aware UTC.
         reported_at=datetime.now(timezone.utc),
     )
     db.add(new_report)
