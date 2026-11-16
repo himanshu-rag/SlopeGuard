@@ -5,7 +5,9 @@ const config: CapacitorConfig = {
   appName: 'SlopeGuard',
   webDir: 'dist',
   server: {
-    url: 'http://10.0.2.2:8000',  // Android emulator localhost
+    // For Android emulator: http://10.0.2.2:8000
+    // For real device: use your computer's LAN IP (e.g., http://192.168.1.50:8000)
+    url: process.env.CAPACITOR_SERVER_URL ?? 'http://10.0.2.2:8000',
     cleartext: true,
   },
   plugins: {
@@ -17,10 +19,9 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       backgroundColor: '#0a0a0a',
-      style: 'LIGHT',
+      style: 'DARK',
     },
     Geolocation: {
-      // High-accuracy GPS for landslide monitoring
       androidForceLocationManager: true,
     },
     LocalNotifications: {
