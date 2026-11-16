@@ -53,7 +53,11 @@ jobs:
           path: ./frontend/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
+<<<<<<< HEAD
       - name: Publish APK release (optional)
+=======
+      - name: Publish APK release
+>>>>>>> 3911b024987d5121310bd5e4a426cbb731baf6ba
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
