@@ -15,6 +15,7 @@
     <a href="#features">Features</a> • 
     <a href="#architecture">Architecture</a> • 
     <a href="#ml-engine">ML Engine</a> • 
+    <a href="#academic-synopsis">Academic Synopsis</a> • 
     <a href="#setup-guide">Setup Guide</a>
   </p>
 </div>
@@ -121,6 +122,22 @@ We calculate the joint probability using a pure logical AND-gate to prevent fals
 ```math
 Risk Score = P(Failure | Terrain) × P(Failure | Rainfall) × 100
 ```
+
+---
+
+<h2 id="academic-synopsis">🎓 Academic Synopsis & Institutional Blueprint</h2>
+
+> [!TIP]
+> **Complete B.Tech CSE Project Synopsis Blueprint Available:**  
+> A comprehensive, 100% compliant academic synopsis document adhering to **IPEC / AKTU standards** is available in [PROJECT_SYNOPSIS_GUIDE.md](file:///Users/himanshu_rags/AI/APP/SlopeGuard/PROJECT_SYNOPSIS_GUIDE.md).
+
+The synopsis guide breaks down the institutional examination rubric into two clear parts:
+1. **The Pattern Decoded**: Strict typographic formatting (Times Roman 12pt, double spaced, 3.5cm binding margin, figure captions at bottom, table captions at top) and 5–10 page budget allocation.
+2. **The Ready-to-Submit Synopsis for SlopeGuard**: Complete write-ups for all 11 mandatory sections:
+   - 📑 **Abstract & Novelty**: Dual-branch decoupled formulation with absolute rain scale normalization.
+   - 🔬 **Methodology & Math**: Terzaghi effective stress basis, XGBoost spatial pipeline, and PyTorch Bi-LSTM ONNX execution.
+   - 📊 **Literature Review & Gap Analysis**: Comparative matrices against 5 seminal works and 4 operational systems.
+   - 🗺️ **Modules & Timeline**: 5-tier architecture, WBS milestone chart with preceding dependencies, and 12 IEEE references.
 
 ---
 

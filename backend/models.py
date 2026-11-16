@@ -1,11 +1,17 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from geoalchemy2 import Geometry
 import uuid
-from sqlalchemy.dialects.postgresql import UUID
-from database import Base
+from database import Base, IS_POSTGRES
 import enum
+
+# On SQLite (no SpatiaLite), store geometry as plain WKT text instead of Geometry type.
+# Spatial queries (ST_Centroid, ST_Intersects) will gracefully degrade on SQLite.
+def _geom(geom_type):
+    return Geometry(geom_type, srid=4326) if IS_POSTGRES else String()
+
 
 class RiskLevel(str, enum.Enum):
     LOW = "LOW"
@@ -13,11 +19,12 @@ class RiskLevel(str, enum.Enum):
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
+
 class TerrainZone(Base):
     __tablename__ = "terrain_zones"
 
     id = Column(Integer, primary_key=True, index=True)
-    geom = Column(Geometry('POLYGON', srid=4326), nullable=False)
+    geom = Column(_geom('POLYGON'), nullable=False)
     slope_deg = Column(Float)
     aspect_deg = Column(Float)
     curvature = Column(Float)
@@ -30,6 +37,7 @@ class TerrainZone(Base):
     rainfall_observations = relationship("RainfallObservation", back_populates="zone")
     risk_scores = relationship("RiskScore", back_populates="zone")
 
+
 class RainfallObservation(Base):
     __tablename__ = "rainfall_observations"
 
@@ -41,11 +49,12 @@ class RainfallObservation(Base):
 
     zone = relationship("TerrainZone", back_populates="rainfall_observations")
 
+
 class RiskScore(Base):
     __tablename__ = "risk_scores"
 
     id = Column(Integer, primary_key=True, index=True)
-    zone_id = Column(Integer, ForeignKey("terrain_zones.id"), nullable=False)
+    zone_id = Column(Integer, ForeignKey("terrain_zones.id"), nullable=True)
     computed_at = Column(DateTime(timezone=True), nullable=False)
     susceptibility = Column(Float)
     trigger_prob = Column(Float)
@@ -56,20 +65,22 @@ class RiskScore(Base):
 
     zone = relationship("TerrainZone", back_populates="risk_scores")
 
+
 class Infrastructure(Base):
     __tablename__ = "infrastructure"
 
     id = Column(Integer, primary_key=True, index=True)
-    geom = Column(Geometry('POINT', srid=4326), nullable=False)
+    geom = Column(_geom('POINT'), nullable=False)
     type = Column(String)
     name = Column(String)
     source = Column(String)
 
+
 class FieldReport(Base):
     __tablename__ = "field_reports"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    geom = Column(Geometry('POINT', srid=4326), nullable=False)
+    id = Column(PG_UUID(as_uuid=True) if IS_POSTGRES else String(36), primary_key=True, default=uuid.uuid4)
+    geom = Column(_geom('POINT'), nullable=False)
     reporter_id = Column(String)
     photo_url = Column(String)
     crack_width = Column(Float)

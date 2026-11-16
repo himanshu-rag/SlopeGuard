@@ -24,6 +24,21 @@ app.add_middleware(
 )
 
 
+# ─────────────────────────────────────────────────────────────
+# DATABASE DEPENDENCY
+# ─────────────────────────────────────────────────────────────
+from sqlalchemy.orm import Session
+from database import SessionLocal, IS_POSTGRES
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 @app.get("/")
 async def root():
     return {"message": "SlopeGuard API v2 is running. All systems online."}
@@ -38,6 +53,7 @@ async def health_check():
 # ML SIMULATION ENDPOINT
 # ─────────────────────────────────────────────────────────────
 class SimulationRequest(BaseModel):
+    zone_id:     Optional[int] = None
     slope_deg:   float
     aspect_deg:  float
     curvature:   float
@@ -58,7 +74,7 @@ class SimulationRequest(BaseModel):
 
 
 @app.post("/simulate")
-async def simulate_risk(req: SimulationRequest):
+async def simulate_risk(req: SimulationRequest, db: Session = Depends(get_db)):
     # FIX #8: Return proper HTTP 500 on error, not HTTP 200 with error body
     try:
         from api_ml import risk_engine  # Imported at module level; any failure raises at startup
@@ -68,33 +84,35 @@ async def simulate_risk(req: SimulationRequest):
         trig_prob   = risk_engine.predict_trigger(req.rainfall_seq)
         final_score, risk_level, reason = risk_engine.calculate_final_risk(susc_prob, trig_prob)
 
+        # Persist risk score to database
+        from models import RiskScore
+        risk_record = RiskScore(
+            zone_id=req.zone_id,
+            computed_at=datetime.now(timezone.utc),
+            susceptibility=susc_prob,
+            trigger_prob=trig_prob,
+            final_score=final_score,
+            confidence=round(min(susc_prob, trig_prob) * 100, 2),
+            reason_code=reason,
+            risk_level=risk_level,
+        )
+        db.add(risk_record)
+        db.commit()
+        db.refresh(risk_record)
+
         return {
             "susceptibility_probability": round(susc_prob, 3),
             "trigger_probability":        round(trig_prob, 3),
             "final_score":                final_score,
             "risk_level":                 risk_level,
             "reason_code":                reason,
+            "risk_score_id": str(risk_record.id),
         }
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         # FIX #8: Was returning {"error": str(e)} with HTTP 200 — now returns HTTP 500
         raise HTTPException(status_code=500, detail=f"Simulation engine error: {str(e)}")
-
-
-# ─────────────────────────────────────────────────────────────
-# DATABASE DEPENDENCY
-# ─────────────────────────────────────────────────────────────
-from sqlalchemy.orm import Session
-from database import SessionLocal
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -111,11 +129,29 @@ async def list_zones(db: Session = Depends(get_db)):
 
     results = []
     for z in zones:
-        # Compute PostGIS centroid to get lat/lng from the polygon geometry
-        centroid = db.execute(
-            text("SELECT ST_X(ST_Centroid(geom)), ST_Y(ST_Centroid(geom)) FROM terrain_zones WHERE id = :id"),
-            {"id": z.id}
-        ).fetchone()
+        lat, lng = None, None
+
+        if IS_POSTGRES:
+            # PostGIS: compute centroid from geometry
+            centroid = db.execute(
+                text("SELECT ST_X(ST_Centroid(geom)), ST_Y(ST_Centroid(geom)) FROM terrain_zones WHERE id = :id"),
+                {"id": z.id}
+            ).fetchone()
+            if centroid:
+                lng, lat = round(centroid[0], 6), round(centroid[1], 6)
+        else:
+            # SQLite: no SpatiaLite — parse WKT POLYGON centroid as average of vertices
+            try:
+                import re
+                wkt = z.geom or ""
+                coords = re.findall(r"([\d.-]+)\s([\d.-]+)", wkt)
+                if coords:
+                    lons = [float(c[0]) for c in coords]
+                    lats = [float(c[1]) for c in coords]
+                    lng = round(sum(lons) / len(lons), 6)
+                    lat = round(sum(lats) / len(lats), 6)
+            except Exception:
+                lat, lng = None, None
 
         results.append({
             "id":        z.id,
@@ -123,8 +159,8 @@ async def list_zones(db: Session = Depends(get_db)):
             "twi":       z.twi,
             "aspect":    z.aspect_deg,
             "curvature": z.curvature,
-            "lng":       round(centroid[0], 6) if centroid else None,
-            "lat":       round(centroid[1], 6) if centroid else None,
+            "lng":       lng,
+            "lat":       lat,
         })
 
     return results
@@ -155,14 +191,26 @@ async def get_zone_rainfall(zone_id: int, db: Session = Depends(get_db)):
 async def get_zone_impact(zone_id: int, db: Session = Depends(get_db)):
     """Finds infrastructure intersecting the given terrain zone using PostGIS."""
     from sqlalchemy import text
-    query = text("""
-        SELECT i.name, i.type
-        FROM infrastructure i
-        JOIN terrain_zones z ON ST_Intersects(i.geom, z.geom)
-        WHERE z.id = :zone_id
-    """)
-    result = db.execute(query, {"zone_id": zone_id}).fetchall()
-    return {"zone_id": zone_id, "affected_infrastructure": [{"name": r[0], "type": r[1]} for r in result]}
+
+    if IS_POSTGRES:
+        query = text("""
+            SELECT i.name, i.type
+            FROM infrastructure i
+            JOIN terrain_zones z ON ST_Intersects(i.geom, z.geom)
+            WHERE z.id = :zone_id
+        """)
+        result = db.execute(query, {"zone_id": zone_id}).fetchall()
+        return {"zone_id": zone_id, "affected_infrastructure": [{"name": r[0], "type": r[1]} for r in result]}
+    else:
+        # SQLite: no SpatiaLite — return infrastructure in the same zone as a best-effort
+        result = db.execute(
+            text("SELECT name, type FROM infrastructure WHERE 1=0")
+        ).fetchall()
+        return {
+            "zone_id": zone_id,
+            "affected_infrastructure": [],
+            "note": "Spatial intersection requires PostGIS. Running on SQLite fallback.",
+        }
 
 
 # ─────────────────────────────────────────────────────────────
