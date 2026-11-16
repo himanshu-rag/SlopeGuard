@@ -15,19 +15,23 @@ interface FieldReportFormProps {
   isOpen: boolean;
   onClose: () => void;
   onReportSubmitted?: () => void;
+  initialLocation?: { lat: number; lng: number };
 }
 
 export default function FieldReportForm({
   isOpen,
   onClose,
   onReportSubmitted,
+  initialLocation,
 }: FieldReportFormProps) {
   if (!isOpen) return null;
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    initialLocation || null
+  );
   const [locationError, setLocationError] = useState<string | null>(null);
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [reverseGeocoding, setReverseGeocoding] = useState(false);

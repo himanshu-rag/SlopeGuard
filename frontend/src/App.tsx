@@ -7,7 +7,10 @@ import TelemetryPanel from './components/TelemetryPanel';
 import RiskModal from './components/RiskModal';
 import PrecipitationChart from './components/PrecipitationChart';
 import FieldReportForm from './components/FieldReportForm';
-import { SEARCH_DB } from './data/search-db';
+import {
+  SEARCH_DB,
+  findNearestZone,
+} from './data/search-db';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
 
@@ -27,6 +30,7 @@ function App() {
 
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
   const [showFieldReport, setShowFieldReport] = useState(false);
+  const [fieldReportLocation, setFieldReportLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const [baseMap, setBaseMap] = useState<'dark' | 'satellite'>('satellite');
   const [showTerrainLayer, setShowTerrainLayer] = useState(false);
@@ -222,6 +226,53 @@ function App() {
     }
   };
 
+  const handleMyLocation = async () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported by your browser.");
+      return;
+    }
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        });
+      });
+      const { latitude, longitude } = pos.coords;
+
+      // Center the map on user's location
+      setViewState({ longitude, latitude, zoom: 15 });
+
+      // Stash location for the field report form
+      setFieldReportLocation({ lat: latitude, lng: longitude });
+
+      // Auto-select nearest zone for risk context
+      const nearest = findNearestZone(latitude, longitude);
+      if (nearest) {
+        setDvrMode(false);
+        setDvrEvent(null);
+        setCurrentZone({
+          id: nearest.id,
+          name: nearest.name,
+          type: nearest.type ?? 'Urban Hills',
+          lng: nearest.lng,
+          lat: nearest.lat,
+          slope: nearest.slope ?? 45.0,
+          aspect: nearest.aspect ?? 180.0,
+          curvature: nearest.curvature ?? -0.5,
+          twi: nearest.twi ?? 8.0,
+        });
+      }
+
+      // Open the field report modal pre-filled with this location
+      setShowFieldReport(true);
+    } catch (err: any) {
+      console.error("[SlopeGuard] Geolocation error:", err.message);
+      alert("Unable to get your location. Please enable location services.");
+    }
+  };
+
   return (
     <div className="relative w-screen h-screen bg-[#0a0a0a]">
       <style>{`
@@ -251,6 +302,7 @@ function App() {
         onToggleTerrain={handleToggleTerrain}
         onToggleFieldReports={handleToggleFieldReports}
         onReportClick={() => setShowFieldReport(true)}
+        onMyLocation={handleMyLocation}
         SEARCH_DB={SEARCH_DB}
       />
 
@@ -285,8 +337,15 @@ function App() {
 
       <FieldReportForm
         isOpen={showFieldReport}
-        onClose={() => setShowFieldReport(false)}
-        onReportSubmitted={() => setShowFieldReport(false)}
+        onClose={() => {
+          setShowFieldReport(false);
+          setFieldReportLocation(null);
+        }}
+        onReportSubmitted={() => {
+          setShowFieldReport(false);
+          setFieldReportLocation(null);
+        }}
+        initialLocation={fieldReportLocation || undefined}
       />
 
       <div className="absolute bottom-6 left-[420px] right-[320px] z-10 pointer-events-auto min-w-[400px]">

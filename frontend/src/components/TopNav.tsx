@@ -13,6 +13,7 @@ interface TopNavProps {
   onToggleTerrain: () => void;
   onToggleFieldReports: () => void;
   onReportClick: () => void;
+  onMyLocation: () => void;
   SEARCH_DB: any[];
 }
 
@@ -27,6 +28,7 @@ export default function TopNav({
   onToggleTerrain,
   onToggleFieldReports,
   onReportClick,
+  onMyLocation,
   SEARCH_DB,
 }: TopNavProps) {
   // DVR toggle
@@ -163,6 +165,14 @@ export default function TopNav({
           className="glass-button px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all hover:bg-white/10 border-red-500/30 text-red-400 hover:bg-red-500/10"
         >
           <Activity size={18} className="animate-pulse" /> <span className="text-sm font-semibold tracking-wide">Field Report</span>
+        </button>
+
+        {/* MY LOCATION BUTTON */}
+        <button
+          onClick={onMyLocation}
+          className="glass-button px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all hover:bg-white/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+        >
+          <MapPin size={18} className="animate-pulse" /> <span className="text-sm font-semibold tracking-wide">My Location</span>
         </button>
 
         {/* SEARCH MODAL */}
