@@ -9,7 +9,7 @@ import PrecipitationChart from './components/PrecipitationChart';
 import FieldReportForm from './components/FieldReportForm';
 import {
   SEARCH_DB,
-  findNearestZone,
+  CUSTOM_LOCATION_ID,
 } from './data/search-db';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
@@ -40,7 +40,7 @@ function App() {
   const [rainData, setRainData] = useState<number[]>([]);
 
   const [viewState, setViewState] = useState({ longitude: 91.76, latitude: 26.14, zoom: 14 });
-  const [currentZone, setCurrentZone] = useState({ id: '5', name: 'Guwahati, AS', type: 'Urban Hills', lng: 91.76, lat: 26.14, slope: 45.0, aspect: 140.0, curvature: -0.5, twi: 8.2 });
+  const [currentZone, setCurrentZone] = useState({ id: '5', name: 'Guwahati, AS', type: 'Urban Hills', lng: 91.76, lat: 26.14, slope: 45.0, aspect: 140.0, curvature: -0.5, twi: 8.2, isCustom: false });
 
   const [evacuationRoute, setEvacuationRoute] = useState<any>(null);
   const [isRouting, setIsRouting] = useState(false);
@@ -81,10 +81,10 @@ function App() {
 
     if (eventName === '2024 Wayanad') {
       setViewState({ longitude: 76.0822, latitude: 11.5549, zoom: 14.5 });
-      setCurrentZone({ id: 'wayanad_1', name: 'Wayanad, KL', type: 'Western Ghats', lng: 76.0822, lat: 11.5549, slope: 62.0, aspect: 180, curvature: -0.9, twi: 12.5 });
+      setCurrentZone({ id: 'wayanad_1', name: 'Wayanad, KL', type: 'Western Ghats', lng: 76.0822, lat: 11.5549, slope: 62.0, aspect: 180, curvature: -0.9, twi: 12.5, isCustom: false });
     } else if (eventName === '2013 Kedarnath') {
       setViewState({ longitude: 79.0669, latitude: 30.7352, zoom: 14.0 });
-      setCurrentZone({ id: 'kedar_1', name: 'Kedarnath, UK', type: 'Himalayan Slopes', lng: 79.0669, lat: 30.7352, slope: 75.0, aspect: 220, curvature: -1.2, twi: 14.0 });
+      setCurrentZone({ id: 'kedar_1', name: 'Kedarnath, UK', type: 'Himalayan Slopes', lng: 79.0669, lat: 30.7352, slope: 75.0, aspect: 220, curvature: -1.2, twi: 14.0, isCustom: false });
     }
   };
 
@@ -213,7 +213,7 @@ function App() {
       ws.close();
       wsRef.current = null;
     };
-  }, [currentZone.id, currentZone.lat, currentZone.lng, currentZone.slope, currentZone.aspect, currentZone.curvature, currentZone.twi, dvrMode]);
+  }, [currentZone.id, currentZone.lat, currentZone.lng, currentZone.slope, currentZone.aspect, currentZone.curvature, currentZone.twi, currentZone.isCustom, dvrMode]);
 
   const handleFlyTo = (zone: any) => {
     if (zone.isHistorical) {
@@ -222,7 +222,7 @@ function App() {
       setDvrMode(false);
       setDvrEvent(null);
       setViewState({ longitude: zone.lng, latitude: zone.lat, zoom: 15.5 });
-      setCurrentZone({ id: zone.id, name: zone.name, type: zone.type, lng: zone.lng, lat: zone.lat, slope: zone.slope, aspect: zone.aspect ?? 180.0, curvature: zone.curvature ?? -0.5, twi: zone.twi });
+      setCurrentZone({ id: zone.id, name: zone.name, type: zone.type, lng: zone.lng, lat: zone.lat, slope: zone.slope, aspect: zone.aspect ?? 180.0, curvature: zone.curvature ?? -0.5, twi: zone.twi, isCustom: false });
     }
   };
 
@@ -247,23 +247,40 @@ function App() {
       // Stash location for the field report form
       setFieldReportLocation({ lat: latitude, lng: longitude });
 
-      // Auto-select nearest zone for risk context
-      const nearest = findNearestZone(latitude, longitude);
-      if (nearest) {
-        setDvrMode(false);
-        setDvrEvent(null);
-        setCurrentZone({
-          id: nearest.id,
-          name: nearest.name,
-          type: nearest.type ?? 'Urban Hills',
-          lng: nearest.lng,
-          lat: nearest.lat,
-          slope: nearest.slope ?? 45.0,
-          aspect: nearest.aspect ?? 180.0,
-          curvature: nearest.curvature ?? -0.5,
-          twi: nearest.twi ?? 8.0,
-        });
-      }
+      // Reverse geocode to get actual place name
+      let placeName = "Your Location";
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=en`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        if (data?.display_name) {
+          placeName = data.display_name.split(",").slice(0, 3).join(", ");
+        }
+      } catch {}
+
+      // Default flat-terrain parameters for arbitrary locations
+      // (Ghaziabad/Delhi NCR = Indo-Gangetic plain: low slope, moderate wetness)
+      const DEFAULT_SLOPE = 3.0;
+      const DEFAULT_TWI = 4.0;
+      const DEFAULT_ASPECT = 180.0;
+      const DEFAULT_CURVATURE = 0.0;
+
+      setDvrMode(false);
+      setDvrEvent(null);
+      setCurrentZone({
+        id: CUSTOM_LOCATION_ID,
+        name: placeName,
+        type: "Custom Location",
+        lng: longitude,
+        lat: latitude,
+        slope: DEFAULT_SLOPE,
+        aspect: DEFAULT_ASPECT,
+        curvature: DEFAULT_CURVATURE,
+        twi: DEFAULT_TWI,
+        isCustom: true,
+      });
 
       // Open the field report modal pre-filled with this location
       setShowFieldReport(true);
