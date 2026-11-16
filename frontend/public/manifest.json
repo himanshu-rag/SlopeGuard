@@ -1,0 +1,73 @@
+{
+  "name": "SlopeGuard",
+  "short_name": "SlopeGuard",
+  "description": "AI-Powered Landslide Early Warning and Evacuation Decision-Support System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x48",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["safety", "weather", "utilities"],
+  "id": "/",
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/assets/hero.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SlopeGuard Command Centre Dashboard"
+    },
+    {
+      "src": "/assets/hero.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "SlopeGuard Mobile View"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Zone Risk",
+      "url": "/?view=risk",
+      "description": "Open the risk intelligence dashboard",
+      "icons": [{ "src": "/favicon.svg", "sizes": "48x48" }]
+    },
+    {
+      "name": "Submit Field Report",
+      "url": "/?view=report",
+      "description": "Submit a field observation from a slope",
+      "icons": [{ "src": "/favicon.svg", "sizes": "48x48" }]
+    },
+    {
+      "name": "DVR Replay",
+      "url": "/?view=dvr",
+      "description": "Replay historical disaster events",
+      "icons": [{ "src": "/favicon.svg", "sizes": "48x48" }]
+    }
+  ]
+}

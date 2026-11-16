@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  # ── Backend: FastAPI + SQLite (or Postgres via env override) ──
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: slopeguard-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./slopeguard.db}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+      - OSRM_URL=${OSRM_URL:-http://router.project-osrm.org}
+      - OVERPASS_URL=${OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      - PYTHONPATH=/app/backend
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./ml:/app/ml:ro
+      - ./.cache:/app/.cache:ro
+      - slopeguard-data:/app/backend/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── Frontend: Nginx serving Vite build + API proxy ──
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: slopeguard-frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Optional: Self-hosted OSRM (uncomment to use local routing) ──
+  # osrm:
+  #   image: osrm/osrm-backend
+  #   container_name: slopeguard-osrm
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./osrm-data:/data
+  #   command: osrm-routed --algorithm mld /data/india-latest.osrm
+  #   restart: unless-stopped
+
+  # ── Optional: Self-hosted PostGIS (uncomment to use Postgres instead of SQLite) ──
+  # postgres:
+  #   image: postgis/postgis:15-3.3
+  #   container_name: slopeguard-postgis
+  #   environment:
+  #     POSTGRES_DB: slopeguard
+  #     POSTGRES_USER: slopeguard
+  #     POSTGRES_PASSWORD: slopeguard
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - slopeguard-postgres:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+volumes:
+  slopeguard-data:
+  # slopeguard-postgres:

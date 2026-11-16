@@ -6,6 +6,7 @@ import InfrastructureCard from './components/InfrastructureCard';
 import TelemetryPanel from './components/TelemetryPanel';
 import RiskModal from './components/RiskModal';
 import PrecipitationChart from './components/PrecipitationChart';
+import FieldReportForm from './components/FieldReportForm';
 import { SEARCH_DB } from './data/search-db';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
@@ -25,6 +26,7 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
+  const [showFieldReport, setShowFieldReport] = useState(false);
 
   const [baseMap, setBaseMap] = useState<'dark' | 'satellite'>('satellite');
   const [showTerrainLayer, setShowTerrainLayer] = useState(false);
@@ -248,6 +250,7 @@ function App() {
         onBaseMapChange={handleBaseMapChange}
         onToggleTerrain={handleToggleTerrain}
         onToggleFieldReports={handleToggleFieldReports}
+        onReportClick={() => setShowFieldReport(true)}
         SEARCH_DB={SEARCH_DB}
       />
 
@@ -278,6 +281,12 @@ function App() {
         data={data}
         rainData={rainData}
         onClose={() => setActiveModal(null)}
+      />
+
+      <FieldReportForm
+        isOpen={showFieldReport}
+        onClose={() => setShowFieldReport(false)}
+        onReportSubmitted={() => setShowFieldReport(false)}
       />
 
       <div className="absolute bottom-6 left-[420px] right-[320px] z-10 pointer-events-auto min-w-[400px]">

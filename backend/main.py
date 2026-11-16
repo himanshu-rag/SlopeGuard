@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from api_ml import risk_engine  # Fail fast at startup if models not found # top-level
 from pydantic import BaseModel, validator
@@ -8,6 +8,7 @@ import asyncio
 import json
 import random
 import uuid
+import os
 
 app = FastAPI(
     title="SlopeGuard API",
@@ -22,6 +23,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ─────────────────────────────────────────────────────────────
+# OPTIONAL API-KEY AUTH (enabled when API_KEY env var is set)
+# ─────────────────────────────────────────────────────────────
+API_KEY = os.getenv("API_KEY", "")
+
+
+async def verify_api_key(x_api_key: Optional[str] = Header(None)):
+    """Enforce API key on write endpoints when API_KEY is configured.
+    If API_KEY is not set, auth is bypassed (dev mode)."""
+    if not API_KEY:
+        return True  # auth disabled
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return True
 
 
 # ─────────────────────────────────────────────────────────────
@@ -74,7 +91,7 @@ class SimulationRequest(BaseModel):
 
 
 @app.post("/simulate")
-async def simulate_risk(req: SimulationRequest, db: Session = Depends(get_db)):
+async def simulate_risk(req: SimulationRequest, db: Session = Depends(get_db), _auth: bool = Depends(verify_api_key)):
     # FIX #8: Return proper HTTP 500 on error, not HTTP 200 with error body
     try:
         from api_ml import risk_engine  # Imported at module level; any failure raises at startup
@@ -228,7 +245,7 @@ class FieldReportCreate(BaseModel):
 
 
 @app.post("/reports")
-async def submit_field_report(report: FieldReportCreate, db: Session = Depends(get_db)):
+async def submit_field_report(report: FieldReportCreate, db: Session = Depends(get_db), _auth: bool = Depends(verify_api_key)):
     """Accepts a field report from the mobile app."""
     from models import FieldReport, TerrainZone
 

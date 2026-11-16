@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Search, Layers, MapPin, Crosshair } from 'lucide-react';
+import { Radio, Search, Layers, MapPin, Crosshair, Activity } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface TopNavProps {
@@ -12,6 +12,7 @@ interface TopNavProps {
   onBaseMapChange: (map: 'dark' | 'satellite') => void;
   onToggleTerrain: () => void;
   onToggleFieldReports: () => void;
+  onReportClick: () => void;
   SEARCH_DB: any[];
 }
 
@@ -25,6 +26,7 @@ export default function TopNav({
   onBaseMapChange,
   onToggleTerrain,
   onToggleFieldReports,
+  onReportClick,
   SEARCH_DB,
 }: TopNavProps) {
   // DVR toggle
@@ -153,6 +155,14 @@ export default function TopNav({
           className={`glass-button px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all hover:bg-white/10 ${showLayers ? 'bg-white/10 border-white/30 text-white' : 'text-gray-300'}`}
         >
           <Layers size={18} /> <span className="text-sm font-semibold tracking-wide">Map Layers</span>
+        </button>
+
+        {/* FIELD REPORT BUTTON */}
+        <button
+          onClick={() => { onReportClick(); setShowSearch(false); setShowLayers(false); }}
+          className="glass-button px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all hover:bg-white/10 border-red-500/30 text-red-400 hover:bg-red-500/10"
+        >
+          <Activity size={18} className="animate-pulse" /> <span className="text-sm font-semibold tracking-wide">Field Report</span>
         </button>
 
         {/* SEARCH MODAL */}
