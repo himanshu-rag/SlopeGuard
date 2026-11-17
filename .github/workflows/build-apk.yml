@@ -69,61 +69,31 @@ jobs:
           if [ ! -d "./frontend/android/capacitor-cordova-android-plugins" ]; then
             echo "Creating stub capacitor-cordova-android-plugins directory..."
             mkdir -p ./frontend/android/capacitor-cordova-android-plugins/src/main/libs
-            cat > ./frontend/android/capacitor-cordova-android-plugins/build.gradle << 'EOF'
-ext {
-    androidxAppCompatVersion = project.hasProperty('androidxAppCompatVersion') ? rootProject.ext.androidxAppCompatVersion : '1.7.1'
-    cordovaAndroidVersion = project.hasProperty('cordovaAndroidVersion') ? rootProject.ext.cordovaAndroidVersion : '14.0.1'
-}
-
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.0'
-    }
-}
-
-apply plugin: 'com.android.library'
-
-android {
-    namespace = "capacitor.cordova.android.plugins"
-    compileSdk = project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36
-    defaultConfig {
-        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 24
-        targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 36
-        versionCode 1
-        versionName "1.0"
-    }
-    lintOptions {
-        abortOnError = false
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
-    }
-}
-
-repositories {
-    google()
-    mavenCentral()
-    flatDir{
-        dirs 'src/main/libs', 'libs'
-    }
-}
-
-dependencies {
-    implementation fileTree(dir: 'src/main/libs', include: ['*.jar'])
-    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation "org.apache.cordova:framework:$cordovaAndroidVersion"
-}
-EOF
-            cat > ./frontend/android/capacitor-cordova-android-plugins/cordova.variables.gradle << 'EOF'
-ext {
-    cdvPluginPostBuildExtras = []
-}
-EOF
+            echo "apply plugin: 'com.android.library'" > ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "android {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    compileSdk = rootProject.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    defaultConfig {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "        minSdkVersion rootProject.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 24" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "        targetSdkVersion rootProject.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 36" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "        versionCode 1" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "        versionName \"1.0\"" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    }" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    compileOptions {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "        sourceCompatibility JavaVersion.VERSION_21" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "        targetCompatibility JavaVersion.VERSION_21" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    }" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "}" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "repositories {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    google()" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    mavenCentral()" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "}" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "dependencies {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    implementation \"androidx.appcompat:appcompat:1.7.1\"" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "}" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "ext { cdvPluginPostBuildExtras = [] }" > ./frontend/android/capacitor-cordova-android-plugins/cordova.variables.gradle
           fi
 
       - name: Build Android APK
