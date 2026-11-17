@@ -12,3 +12,4 @@ joblib
 numpy
 onnxruntime
 scikit-learn
+xgboost
