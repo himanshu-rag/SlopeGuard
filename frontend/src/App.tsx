@@ -22,7 +22,7 @@ const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
 const riskStyles = {
   CRITICAL: { title: 'text-red-500', boxBg: 'bg-red-500/5', boxBorder: 'border-red-500/20', icon: 'text-red-400', iconBg: 'bg-red-500/20 group-hover:bg-red-500/30', label: 'text-red-400', desc: 'text-red-300' },
   HIGH: { title: 'text-orange-500', boxBg: 'bg-orange-500/5', boxBorder: 'border-orange-500/20', icon: 'text-orange-400', iconBg: 'bg-orange-500/20 group-hover:bg-orange-500/30', label: 'text-orange-400', desc: 'text-orange-300' },
-  MEDIUM: { title: 'text-yellow-500', boxBg: 'bg-yellow-500/5', boxBorder: 'border-yellow-500/20', icon: 'text-yellow-400', iconBg: 'bg-yellow-500/20 group-hover:bg-yellow-500/30', label: 'text-yellow-400', desc: 'text-yellow-300' },
+  MEDIUM: { title: 'text-yellow-500', boxBg: 'bg-yellow-500/5', boxBorder: 'border-yellow-500/20', icon: 'text-yellow-400', iconBg: 'bg-yellow-500/20 group-hover:bg-yellow-500/30', label: 'text-yellow-400', desc: 'text-orange-300' },
   LOW: { title: 'text-emerald-500', boxBg: 'bg-emerald-500/5', boxBorder: 'border-emerald-500/20', icon: 'text-emerald-400', iconBg: 'bg-emerald-500/20 group-hover:bg-emerald-500/30', label: 'text-emerald-400', desc: 'text-emerald-300' }
 };
 
@@ -58,6 +58,9 @@ function App() {
 
   const [dvrMode, setDvrMode] = useState(false);
   const [dvrEvent, setDvrEvent] = useState<string | null>(null);
+
+  // Bottom sheet state for mobile
+  const [sheetExpanded, setSheetExpanded] = useState(false);
 
   const calculateEvacuation = async () => {
     setIsRouting(true);
@@ -234,6 +237,7 @@ function App() {
       setDvrEvent(null);
       setViewState({ longitude: zone.lng, latitude: zone.lat, zoom: 15.5 });
       setCurrentZone({ id: zone.id, name: zone.name, type: zone.type, lng: zone.lng, lat: zone.lat, slope: zone.slope, aspect: zone.aspect ?? 180.0, curvature: zone.curvature ?? -0.5, twi: zone.twi, isCustom: false });
+      setSheetExpanded(false);
     }
   };
 
@@ -242,13 +246,9 @@ function App() {
       const pos = await getCurrentPosition();
       const { latitude, longitude } = pos;
 
-      // Center the map on user's location
       setViewState({ longitude, latitude, zoom: 15 });
-
-      // Stash location for the field report form
       setFieldReportLocation({ lat: latitude, lng: longitude });
 
-      // Reverse geocode to get actual place name
       let placeName = "Your Location";
       try {
         const res = await fetch(
@@ -261,8 +261,6 @@ function App() {
         }
       } catch {}
 
-      // Default flat-terrain parameters for arbitrary locations
-      // (Ghaziabad/Delhi NCR = Indo-Gangetic plain: low slope, moderate wetness)
       const DEFAULT_SLOPE = 3.0;
       const DEFAULT_TWI = 4.0;
       const DEFAULT_ASPECT = 180.0;
@@ -283,8 +281,8 @@ function App() {
         isCustom: true,
       });
 
-      // Open the field report modal pre-filled with this location
       setShowFieldReport(true);
+      setSheetExpanded(true);
     } catch (err: any) {
       console.error("[SlopeGuard] Geolocation error:", err.message);
       alert("Unable to get your location. Please enable location services.");
@@ -292,13 +290,21 @@ function App() {
   };
 
   return (
-    <div className="relative w-screen h-screen bg-[#0a0a0a]">
+    <div className="relative w-screen h-screen bg-[#0a0a0a] overflow-hidden">
       <style>{`
         .dark-map-layer .maplibregl-canvas { filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%); }
-        .glass-panel { background: rgba(17, 17, 17, 0.75); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .glass-panel { background: rgba(17, 17, 17, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .glass-button { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .bottom-sheet {
+          background: rgba(17, 17, 17, 0.95);
+          backdrop-filter: blur(24px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top-left-radius: 24px;
+          border-top-right-radius: 24px;
+        }
       `}</style>
 
+      {/* Map - full screen behind everything */}
       <MapView
         viewState={viewState}
         baseMap={baseMap}
@@ -309,6 +315,7 @@ function App() {
         onMove={(evt) => setViewState(evt.viewState)}
       />
 
+      {/* Top Navigation - thumb reachable */}
       <TopNav
         dvrMode={dvrMode}
         dvrEvent={dvrEvent}
@@ -324,27 +331,56 @@ function App() {
         SEARCH_DB={SEARCH_DB}
       />
 
-      <div className="absolute top-28 left-6 z-10 w-96 flex flex-col gap-5 pointer-events-auto">
-        <RiskCard
-          currentZone={currentZone}
-          data={data}
-          loading={loading}
-          dvrEvent={dvrEvent}
-          riskStyles={riskStyles}
-          setActiveModal={setActiveModal}
-        />
-        <InfrastructureCard
-          currentZone={currentZone}
-          data={data}
-          setViewState={setViewState}
-          setActiveModal={setActiveModal}
-          calculateEvacuation={calculateEvacuation}
-          isRouting={isRouting}
-        />
+      {/* Bottom Sheet - Risk Card + Details */}
+      <div className={`bottom-sheet absolute bottom-0 left-0 right-0 h-[60%] md:h-[55%] z-50 transition-all duration-300 transform ${sheetExpanded ? 'translate-y-0' : 'translate-y-[70%]'} shadow-2xl`}>
+        {/* Sheet handle */}
+        <div className="flex justify-center pt-3">
+          <div className="w-12 h-1.5 bg-gray-600 rounded-full mx-auto"></div>
+        </div>
+
+        {/* Sheet content - scrollable */}
+        <div className="p-4 space-y-4 max-h-[calc(100vh-100px)] overflow-y-auto">
+          
+          {/* Risk Card */}
+          <RiskCard
+            currentZone={currentZone}
+            data={data}
+            loading={loading}
+            dvrEvent={dvrEvent}
+            riskStyles={riskStyles}
+            setActiveModal={setActiveModal}
+          />
+
+          {/* Infrastructure Card */}
+          <InfrastructureCard
+            currentZone={currentZone}
+            data={data}
+            setViewState={setViewState}
+            setActiveModal={setActiveModal}
+            calculateEvacuation={calculateEvacuation}
+            isRouting={isRouting}
+          />
+
+          {/* Telemetry Panel - compact */}
+          <TelemetryPanel telemetry={telemetry} dvrEvent={dvrEvent} />
+
+          {/* Precipitation Chart */}
+          <div className="relative h-48 w-full">
+            <PrecipitationChart rainData={rainData} />
+          </div>
+
+          {/* Field Report Form trigger hint */}
+          {dvrEvent && (
+            <div className="px-4 py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+              <p className="text-sm text-yellow-400 font-medium">
+                DVR Replay: {dvrEvent} — tap map to explore
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
-      <TelemetryPanel telemetry={telemetry} dvrEvent={dvrEvent} />
-
+      {/* Risk Modal */}
       <RiskModal
         activeModal={activeModal}
         currentZone={currentZone}
@@ -353,6 +389,7 @@ function App() {
         onClose={() => setActiveModal(null)}
       />
 
+      {/* Field Report Form */}
       <FieldReportForm
         isOpen={showFieldReport}
         onClose={() => {
@@ -366,9 +403,36 @@ function App() {
         initialLocation={fieldReportLocation || undefined}
       />
 
-      <div className="absolute bottom-6 left-[420px] right-[320px] z-10 pointer-events-auto min-w-[400px]">
-        <PrecipitationChart rainData={rainData} />
+      {/* Floating Action Buttons - bottom right, thumb reachable */}
+      <div className="absolute bottom-[110px] right-4 z-40 flex flex-col gap-2">
+        <button
+          onClick={handleMyLocation}
+          className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
+          aria-label="My Location"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 12m-3 0a3 3 0 116 0a3 3 0 01-6 0z" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setShowFieldReport(true)}
+          className="w-14 h-14 rounded-full bg-red-500 backdrop-blur-md border border-red-500/30 flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
+          aria-label="Field Report"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
       </div>
+
+      {/* Sheet expand hint */}
+      {!sheetExpanded && (
+        <div className="absolute bottom-[90px] left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 px-3 py-1.5 bg-black/60 backdrop-blur rounded-full text-xs text-gray-300 border border-white/10">
+          <span className="w-2 h-2 rounded-full bg-white/30"></span>
+          <span>Slide up for details</span>
+        </div>
+      )}
     </div>
   );
 }
