@@ -63,6 +63,69 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./frontend/android/gradlew
 
+      - name: Ensure capacitor-cordova-android-plugins exists
+        run: |
+          # capacitor-cordova-android-plugins is gitignored and missing in fresh CI checkouts
+          if [ ! -d "./frontend/android/capacitor-cordova-android-plugins" ]; then
+            echo "Creating stub capacitor-cordova-android-plugins directory..."
+            mkdir -p ./frontend/android/capacitor-cordova-android-plugins/src/main/libs
+            cat > ./frontend/android/capacitor-cordova-android-plugins/build.gradle << 'EOF'
+ext {
+    androidxAppCompatVersion = project.hasProperty('androidxAppCompatVersion') ? rootProject.ext.androidxAppCompatVersion : '1.7.1'
+    cordovaAndroidVersion = project.hasProperty('cordovaAndroidVersion') ? rootProject.ext.cordovaAndroidVersion : '14.0.1'
+}
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace = "capacitor.cordova.android.plugins"
+    compileSdk = project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36
+    defaultConfig {
+        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 24
+        targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 36
+        versionCode 1
+        versionName "1.0"
+    }
+    lintOptions {
+        abortOnError = false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+    flatDir{
+        dirs 'src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'src/main/libs', include: ['*.jar'])
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "org.apache.cordova:framework:$cordovaAndroidVersion"
+}
+EOF
+            cat > ./frontend/android/capacitor-cordova-android-plugins/cordova.variables.gradle << 'EOF'
+ext {
+    cdvPluginPostBuildExtras = []
+}
+EOF
+          fi
+
       - name: Build Android APK
         working-directory: ./frontend/android
         run: ./gradlew assembleDebug
