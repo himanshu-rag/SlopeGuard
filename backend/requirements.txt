@@ -8,3 +8,7 @@ celery
 redis
 python-dotenv
 httpx
+joblib
+numpy
+onnxruntime
+scikit-learn
