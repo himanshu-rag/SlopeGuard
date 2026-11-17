@@ -100,7 +100,11 @@ jobs:
         working-directory: ./frontend/android
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee build-log.txt
+          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee build-log.txt || {
+            echo "=== BUILD FAILED - ERROR OUTPUT ==="
+            tail -80 build-log.txt
+            exit 1
+          }
 
       - name: Upload build log
         if: always()
