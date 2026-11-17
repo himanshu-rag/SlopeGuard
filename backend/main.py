@@ -23,6 +23,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://10.154.148.46:8000",
+        "https://slope-guard-phi.vercel.app",
         "capacitor://localhost",
         "http://localhost",
     ],
