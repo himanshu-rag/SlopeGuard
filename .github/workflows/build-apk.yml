@@ -99,12 +99,17 @@ jobs:
       - name: Build Android APK
         working-directory: ./frontend/android
         run: |
-          set -o pipefail
-          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee build-log.txt || {
-            echo "=== BUILD FAILED - ERROR OUTPUT ==="
-            tail -80 build-log.txt
-            exit 1
-          }
+          set +e
+          ./gradlew assembleDebug --stacktrace --info > build-log.txt 2>&1
+          GRADLE_EXIT=$?
+          if [ $GRADLE_EXIT -ne 0 ]; then
+            echo "::group::Gradle Build Errors"
+            grep -E "error:|Exception|FAILED|What went wrong|Could not|Unable to|Could not resolve|Caused by" build-log.txt | head -30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            echo "::endgroup::"
+            exit $GRADLE_EXIT
+          fi
 
       - name: Upload build log
         if: always()
