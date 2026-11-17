@@ -72,6 +72,7 @@ jobs:
             echo "apply plugin: 'com.android.library'" > ./frontend/android/capacitor-cordova-android-plugins/build.gradle
             echo "" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
             echo "android {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
+            echo "    namespace = \"capacitor.cordova.android.plugins\"" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
             echo "    compileSdk = rootProject.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
             echo "    defaultConfig {" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
             echo "        minSdkVersion rootProject.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 24" >> ./frontend/android/capacitor-cordova-android-plugins/build.gradle
