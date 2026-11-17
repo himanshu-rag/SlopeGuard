@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     // For Android emulator: http://10.0.2.2:8000
     // For real device: use your computer's LAN IP (e.g., http://192.168.1.50:8000)
-    url: process.env.CAPACITOR_SERVER_URL ?? 'RENDER_URL_PLACEHOLDER',
+    url: process.env.CAPACITOR_SERVER_URL ?? 'https://slopeguard-au04.onrender.com',
     cleartext: true,
   },
   plugins: {
